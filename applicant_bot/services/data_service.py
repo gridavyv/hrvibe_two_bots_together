@@ -13,10 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 
-from services.constants import (
-    APPLICANT_BOT_DATA_DIR,
-    APPLICANT_BOT_RECORDS_FILENAME,
-    )
+from services.constants import APPLICANT_BOT_DATA_DIR, APPLICANT_BOT_RECORDS_FILENAME
 
 
 # ****** METHODS with TAGS: [get_data] ******
