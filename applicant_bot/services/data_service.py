@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 
 from services.constants import (
-    DATA_DIR, 
     APPLICANT_BOT_DATA_DIR,
     APPLICANT_BOT_RECORDS_FILENAME,
     )
