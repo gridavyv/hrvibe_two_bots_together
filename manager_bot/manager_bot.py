@@ -159,37 +159,45 @@ async def admin_test_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     Admin command to test the bot.
     Only accessible to users whose ID is in the ADMIN_IDS whitelist.
     """
-
+    
+    logger.info("admin_test_command called")
+    
     try:
         # ----- IDENTIFY USER and pull required data from records -----
 
         bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        logger.info(f"admin_test_command: bot_user_id = {bot_user_id}")
         
         #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
 
         admin_id = os.getenv("ADMIN_ID", "")
         if not admin_id:
-            await send_message_to_user(update, context, text="❌ Admin ID not configured.")
             logger.error("ADMIN_ID environment variable is not set")
+            await send_message_to_user(update, context, text="❌ Admin ID not configured.")
             return
         if bot_user_id != admin_id:
-            await send_message_to_user(update, context, text="❌ Unauthorized. Admin access required.")
             logger.warning(f"Unauthorized admin command attempt from user {bot_user_id}. Allowed ID: {admin_id}")
+            await send_message_to_user(update, context, text="❌ Unauthorized. Admin access required.")
             return
 
-        # ----- SEND LIST OF USERS IDs from records -----
+        # ----- SEND TEST MESSAGE -----
 
         logger.info("Test command executed successfully")
-
-        await send_message_to_user(update, context, text=f"Test command executed successfully")
+        await send_message_to_user(update, context, text="✅ Test command executed successfully")
     
     except Exception as e:
-        logger.error(f"Failed to execute admin_get_list_of_users command: {e}", exc_info=True)        # Send notification to admin about the error
+        logger.error(f"Failed to execute admin_test command: {e}", exc_info=True)
+        # Send notification to admin about the error
         if context.application:
             await send_message_to_admin(
                 application=context.application,
-                text=f"⚠️ Error executing admin_get_list_of_users command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+                text=f"⚠️ Error executing admin_test command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
             )
+        # Also try to send error message to user
+        try:
+            await send_message_to_user(update, context, text="❌ Error executing test command.")
+        except Exception:
+            pass
 
 
 async def admin_get_list_of_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
