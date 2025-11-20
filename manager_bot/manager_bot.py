@@ -160,30 +160,39 @@ async def admin_get_list_of_users_command(update: Update, context: ContextTypes.
     Only accessible to users whose ID is in the ADMIN_IDS whitelist.
     """
 
-    # ----- IDENTIFY USER and pull required data from records -----
+    try:
+        # ----- IDENTIFY USER and pull required data from records -----
 
-    bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        
+        #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
+
+        admin_id = os.getenv("ADMIN_ID", "")
+        if not admin_id:
+            await send_message_to_user(update, context, text="❌ Admin ID not configured.")
+            logger.error("ADMIN_ID environment variable is not set")
+            return
+        if bot_user_id != admin_id:
+            await send_message_to_user(update, context, text="❌ Unauthorized. Admin access required.")
+            logger.warning(f"Unauthorized admin command attempt from user {bot_user_id}. Allowed ID: {admin_id}")
+            return
+
+        # ----- SEND LIST OF USERS IDs from records -----
+
+        user_records = get_users_records_file_path()
+        with open(user_records, "r", encoding="utf-8") as f:
+            records = json.load(f)
+        user_ids = list(records.keys())
+
+        await send_message_to_user(update, context, text=f"📋 List of users: {user_ids}")
     
-    #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
-
-    admin_id = os.getenv("ADMIN_ID", "")
-    if not admin_id:
-        await send_message_to_user(update, context, text="❌ Admin ID not configured.")
-        logger.error("ADMIN_ID environment variable is not set")
-        return
-    if bot_user_id != admin_id:
-        await send_message_to_user(update, context, text="❌ Unauthorized. Admin access required.")
-        logger.warning(f"Unauthorized admin command attempt from user {bot_user_id}. Allowed ID: {admin_id}")
-        return
-
-    # ----- SEND LIST OF USERS IDs from records -----
-
-    user_records = get_users_records_file_path()
-    with open(user_records, "r", encoding="utf-8") as f:
-        records = json.load(f)
-    user_ids = list(records.keys())
-
-    await send_message_to_user(update, context, text=f"📋 List of users: {user_ids}")
+    except Exception as e:
+        logger.error(f"Failed to execute admin_get_list_of_users command: {e}", exc_info=True)        # Send notification to admin about the error
+        if context.application:
+            await send_message_to_admin(
+                application=context.application,
+                text=f"⚠️ Error executing admin_get_list_of_users command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+            )
 
 
 async def admin_update_negotiations_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -193,35 +202,45 @@ async def admin_update_negotiations_command(update: Update, context: ContextType
     Only accessible to users whose ID is in the ADMIN_IDS whitelist.
     """
 
-    # ----- IDENTIFY USER and pull required data from records -----
+    try:
+        # ----- IDENTIFY USER and pull required data from records -----
 
-    bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        
+        #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
+
+        admin_id = os.getenv("ADMIN_ID", "")
+        if not admin_id:
+            await send_message_to_user(update, context, text="❌ Admin ID not configured.")
+            logger.error("ADMIN_ID environment variable is not set")
+            return
+        if bot_user_id != admin_id:
+            await send_message_to_user(update, context, text="❌ Unauthorized. Admin access required.")
+            logger.warning(f"Unauthorized admin command attempt from user {bot_user_id}. Allowed ID: {admin_id}")
+            return
+
+        # ----- UPDATE NEGOTIATIONS for all users -----
+
+        user_records = get_users_records_file_path()
+        with open(user_records, "r", encoding="utf-8") as f:
+            records = json.load(f)
+        user_ids = list(records.keys())
+        for user_id in user_ids:
+            if is_vacany_data_enough_for_resume_analysis(user_id=user_id):
+                await source_negotiations_triggered_by_admin_command(bot_user_id=user_id)
+            else:
+                logger.debug(f"User {user_id} is not ready for negotiations, resume source and analysis.")
+
+        await send_message_to_user(update, context, text=f"Negotiations updated for {len(user_ids)} users.")
     
-    #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
-
-    admin_id = os.getenv("ADMIN_ID", "")
-    if not admin_id:
-        await send_message_to_user(update, context, text="❌ Admin ID not configured.")
-        logger.error("ADMIN_ID environment variable is not set")
-        return
-    if bot_user_id != admin_id:
-        await send_message_to_user(update, context, text="❌ Unauthorized. Admin access required.")
-        logger.warning(f"Unauthorized admin command attempt from user {bot_user_id}. Allowed ID: {admin_id}")
-        return
-
-    # ----- UPDATE NEGOTIATIONS for all users -----
-
-    user_records = get_users_records_file_path()
-    with open(user_records, "r", encoding="utf-8") as f:
-        records = json.load(f)
-    user_ids = list(records.keys())
-    for user_id in user_ids:
-        if is_vacany_data_enough_for_resume_analysis(user_id=user_id):
-            await source_negotiations_triggered_by_admin_command(bot_user_id=user_id)
-        else:
-            logger.debug(f"User {user_id} is not ready for negotiations, resume source and analysis.")
-
-    await send_message_to_user(update, context, text=f"Negotiations updated for {len(user_ids)} users.")
+    except Exception as e:
+        logger.error(f"Failed to execute admin_update_negotiations command: {e}", exc_info=True)
+        # Send notification to admin about the error
+        if context.application:
+            await send_message_to_admin(
+                application=context.application,
+                text=f"⚠️ Error executing admin_update_negotiations command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+            )
 
 
 async def admin_get_fresh_resumes_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -231,35 +250,45 @@ async def admin_get_fresh_resumes_command(update: Update, context: ContextTypes.
     Only accessible to users whose ID is in the ADMIN_IDS whitelist.
     """
 
-    # ----- IDENTIFY USER and pull required data from records -----
+    try:
+        # ----- IDENTIFY USER and pull required data from records -----
 
-    bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        
+        #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
+
+        admin_id = os.getenv("ADMIN_ID", "")
+        if not admin_id:
+            await send_message_to_user(update, context, text="❌ Admin ID not configured.")
+            logger.error("ADMIN_ID environment variable is not set")
+            return
+        if bot_user_id != admin_id:
+            await send_message_to_user(update, context, text="❌ Unauthorized. Admin access required.")
+            logger.warning(f"Unauthorized admin command attempt from user {bot_user_id}. Allowed ID: {admin_id}")
+            return
+
+        # ----- SOURCE RESUMES for all users -----
+
+        user_records = get_users_records_file_path()
+        with open(user_records, "r", encoding="utf-8") as f:
+            records = json.load(f)
+        user_ids = list(records.keys())
+        for user_id in user_ids:
+            if is_vacany_data_enough_for_resume_analysis(user_id=user_id):
+                await source_resumes_triggered_by_admin_command(bot_user_id=user_id)
+            else:
+                logger.debug(f"User {user_id} is not ready for resume source and analysis.")
+                
+        await send_message_to_user(update, context, text=f"Fresh resumes sourced for {len(user_ids)} users.")
     
-    #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
-
-    admin_id = os.getenv("ADMIN_ID", "")
-    if not admin_id:
-        await send_message_to_user(update, context, text="❌ Admin ID not configured.")
-        logger.error("ADMIN_ID environment variable is not set")
-        return
-    if bot_user_id != admin_id:
-        await send_message_to_user(update, context, text="❌ Unauthorized. Admin access required.")
-        logger.warning(f"Unauthorized admin command attempt from user {bot_user_id}. Allowed ID: {admin_id}")
-        return
-
-    # ----- SOURCE RESUMES for all users -----
-
-    user_records = get_users_records_file_path()
-    with open(user_records, "r", encoding="utf-8") as f:
-        records = json.load(f)
-    user_ids = list(records.keys())
-    for user_id in user_ids:
-        if is_vacany_data_enough_for_resume_analysis(user_id=user_id):
-            await source_resumes_triggered_by_admin_command(bot_user_id=user_id)
-        else:
-            logger.debug(f"User {user_id} is not ready for resume source and analysis.")
-            
-    await send_message_to_user(update, context, text=f"Fresh resumes sourced for {len(user_ids)} users.")
+    except Exception as e:
+        logger.error(f"Failed to execute admin_get_fresh_resumes command: {e}", exc_info=True)
+        # Send notification to admin about the error
+        if context.application:
+            await send_message_to_admin(
+                application=context.application,
+                text=f"⚠️ Error executing admin_get_fresh_resumes command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+            )
 
 
 async def admin_anazlyze_and_sort_resumes_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -269,35 +298,45 @@ async def admin_anazlyze_and_sort_resumes_command(update: Update, context: Conte
     Only accessible to users whose ID is in the ADMIN_IDS whitelist.
     """
 
-    # ----- IDENTIFY USER and pull required data from records -----
+    try:
+        # ----- IDENTIFY USER and pull required data from records -----
 
-    bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        
+        #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
+
+        admin_id = os.getenv("ADMIN_ID", "")
+        if not admin_id:
+            await send_message_to_user(update, context, text="❌ Admin ID not configured.")
+            logger.error("ADMIN_ID environment variable is not set")
+            return
+        if bot_user_id != admin_id:
+            await send_message_to_user(update, context, text="❌ Unauthorized. Admin access required.")
+            logger.warning(f"Unauthorized admin command attempt from user {bot_user_id}. Allowed ID: {admin_id}")
+            return
+
+        # ----- CREATE TASKS for resume ananlysis for all users -----
+
+        user_records = get_users_records_file_path()
+        with open(user_records, "r", encoding="utf-8") as f:
+            records = json.load(f)
+        user_ids = list(records.keys())
+        for user_id in user_ids:
+            if is_vacany_data_enough_for_resume_analysis(user_id=user_id):
+                await analyze_resume_triggered_by_admin_command(bot_user_id=user_id)
+            else:
+                logger.debug(f"User {user_id} is not ready for resume source and analysis.")
+                
+        await send_message_to_user(update, context, text=f"Created tasks for resume ananlysis for {len(user_ids)} users.")
     
-    #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
-
-    admin_id = os.getenv("ADMIN_ID", "")
-    if not admin_id:
-        await send_message_to_user(update, context, text="❌ Admin ID not configured.")
-        logger.error("ADMIN_ID environment variable is not set")
-        return
-    if bot_user_id != admin_id:
-        await send_message_to_user(update, context, text="❌ Unauthorized. Admin access required.")
-        logger.warning(f"Unauthorized admin command attempt from user {bot_user_id}. Allowed ID: {admin_id}")
-        return
-
-    # ----- CREATE TASKS for resume ananlysis for all users -----
-
-    user_records = get_users_records_file_path()
-    with open(user_records, "r", encoding="utf-8") as f:
-        records = json.load(f)
-    user_ids = list(records.keys())
-    for user_id in user_ids:
-        if is_vacany_data_enough_for_resume_analysis(user_id=user_id):
-            await analyze_resume_triggered_by_admin_command(bot_user_id=user_id)
-        else:
-            logger.debug(f"User {user_id} is not ready for resume source and analysis.")
-            
-    await send_message_to_user(update, context, text=f"Created tasks for resume ananlysis for {len(user_ids)} users.")
+    except Exception as e:
+        logger.error(f"Failed to execute admin_anazlyze_and_sort_resumes command: {e}", exc_info=True)
+        # Send notification to admin about the error
+        if context.application:
+            await send_message_to_admin(
+                application=context.application,
+                text=f"⚠️ Error executing admin_anazlyze_and_sort_resumes command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+            )
 
 
 async def admin_status_of_applicants_video_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -307,26 +346,36 @@ async def admin_status_of_applicants_video_command(update: Update, context: Cont
     Only accessible to users whose ID is in the ADMIN_IDS whitelist.
     """
 
-    # ----- IDENTIFY USER and pull required data from records -----
+    try:
+        # ----- IDENTIFY USER and pull required data from records -----
 
-    bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
-    target_vacancy_id = get_target_vacancy_id_from_records(record_id=bot_user_id)
+        bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        target_vacancy_id = get_target_vacancy_id_from_records(record_id=bot_user_id)
 
-    #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
+        #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
 
-    admin_id = os.getenv("ADMIN_ID", "")
-    if not admin_id:
-        await send_message_to_user(update, context, text="❌ Admin ID not configured.")
-        logger.error("ADMIN_ID environment variable is not set")
-        return
-    if bot_user_id != admin_id:
-        await send_message_to_user(update, context, text="❌ Unauthorized. Admin access required.")
-        logger.warning(f"Unauthorized admin command attempt from user {bot_user_id}. Allowed ID: {admin_id}")
-        return
+        admin_id = os.getenv("ADMIN_ID", "")
+        if not admin_id:
+            await send_message_to_user(update, context, text="❌ Admin ID not configured.")
+            logger.error("ADMIN_ID environment variable is not set")
+            return
+        if bot_user_id != admin_id:
+            await send_message_to_user(update, context, text="❌ Unauthorized. Admin access required.")
+            logger.warning(f"Unauthorized admin command attempt from user {bot_user_id}. Allowed ID: {admin_id}")
+            return
 
-    # ----- UPDATE RESUME RECORDS with FRESH VIDEOS from applicants -----
+        # ----- UPDATE RESUME RECORDS with FRESH VIDEOS from applicants -----
 
-    await updated_resume_records_with_fresh_video_from_applicants_command(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, application=context.application) 
+        await updated_resume_records_with_fresh_video_from_applicants_command(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, application=context.application)
+    
+    except Exception as e:
+        logger.error(f"Failed to execute admin_status_of_applicants_video command: {e}", exc_info=True)
+        # Send notification to admin about the error
+        if context.application:
+            await send_message_to_admin(
+                application=context.application,
+                text=f"⚠️ Error executing admin_status_of_applicants_video command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+            ) 
 
 
 async def admin_recommend_applicants_with_video_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -336,25 +385,35 @@ async def admin_recommend_applicants_with_video_command(update: Update, context:
     Only accessible to users whose ID is in the ADMIN_IDS whitelist.
     """
 
-    # ----- IDENTIFY USER and pull required data from records -----
+    try:
+        # ----- IDENTIFY USER and pull required data from records -----
 
-    bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        
+        #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
+
+        admin_id = os.getenv("ADMIN_ID", "")
+        if not admin_id:
+            await send_message_to_user(update, context, text="❌ Admin ID not configured.")
+            logger.error("ADMIN_ID environment variable is not set")
+            return
+        if bot_user_id != admin_id:
+            await send_message_to_user(update, context, text="❌ Unauthorized. Admin access required.")
+            logger.warning(f"Unauthorized admin command attempt from user {bot_user_id}. Allowed ID: {admin_id}")
+            return
+
+        await recommend_resumes_with_video_command(bot_user_id=bot_user_id, application=context.application)
+
+        await send_message_to_user(update, context, text=f"Fresh videos pulled to applicants directory and resume_records updated with video statuses.")
     
-    #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
-
-    admin_id = os.getenv("ADMIN_ID", "")
-    if not admin_id:
-        await send_message_to_user(update, context, text="❌ Admin ID not configured.")
-        logger.error("ADMIN_ID environment variable is not set")
-        return
-    if bot_user_id != admin_id:
-        await send_message_to_user(update, context, text="❌ Unauthorized. Admin access required.")
-        logger.warning(f"Unauthorized admin command attempt from user {bot_user_id}. Allowed ID: {admin_id}")
-        return
-
-    await recommend_resumes_with_video_command(bot_user_id=bot_user_id, application=context.application)
-
-    await send_message_to_user(update, context, text=f"Fresh videos pulled to applicants directory and resume_records updated with video statuses.")
+    except Exception as e:
+        logger.error(f"Failed to execute admin_recommend_applicants_with_video command: {e}", exc_info=True)
+        # Send notification to admin about the error
+        if context.application:
+            await send_message_to_admin(
+                application=context.application,
+                text=f"⚠️ Error executing admin_recommend_applicants_with_video command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+            )
 
 
 async def admin_send_message_to_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1105,7 +1164,7 @@ async def handle_answer_select_vacancy(update: Update, context: ContextTypes.DEF
             # Inform user that selected vacancy is being processed
             if selected_option:
                 vacancy_name, vacancy_id = selected_option
-                await send_message_to_user(update, context, text=f"Вы выбрали вакансию:\n'{vacancy_name}'\n ID: '{vacancy_id}'")
+                await send_message_to_user(update, context, text=f"Вы выбрали вакансию:\n'{vacancy_name}'")
                 await asyncio.sleep(2)
 
         # ----- ASK USER to record welcome video -----
@@ -1715,7 +1774,7 @@ async def recommend_resumes_with_video_command(bot_user_id: str, application: Ap
         # if there are no suitable applicants, communicate the result
         if num_of_passed_resume_ids_with_video == 0:
             if application and application.bot:
-                await application.bot.send_message(chat_id=int(bot_user_id), text=f"Вакансия: '{target_vacancy_name}.\nВ настоящее время нет подходящих кандидатов, записавших видео визитку.")
+                await application.bot.send_message(chat_id=int(bot_user_id), text=f"Вакансия: '{target_vacancy_name}'.\nПока нет подходящих кандидатов, записавших видео визитку.")
             else:
                 logger.warning(f"Cannot send message to user {bot_user_id}: application or bot instance not provided")
             return

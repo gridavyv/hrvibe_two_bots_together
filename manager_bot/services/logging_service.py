@@ -3,6 +3,7 @@ import logging.handlers
 import sys
 from datetime import datetime
 from pathlib import Path
+import os
 
 
 def setup_logging(max_bytes: int = 20 * 1024 * 1024, backup_count: int = 20):
@@ -16,10 +17,12 @@ def setup_logging(max_bytes: int = 20 * 1024 * 1024, backup_count: int = 20):
 
     # ------------- CREATION OF LOGGING FILE -------------
 
-    logs_dir = Path("logs")
-    logs_dir.mkdir(exist_ok=True)
+    data_dir = Path(os.getenv("USERS_DATA_DIR", "/users_data"))
+    logs_dir = data_dir / "logs" / "manager_bot_logs"
+    # Create logs directory and all parent directories if they don't exist
+    logs_dir.mkdir(parents=True, exist_ok=True)
     # Each application start will create a new log file path with timestamp (to avoid overwriting the same file)
-    log_filename = logs_dir / f"bot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    log_filename = logs_dir / f"manager_bot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
     
     # ------------- CONFIGURATION OF LOGGING -------------
 

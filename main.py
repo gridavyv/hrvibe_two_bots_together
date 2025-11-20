@@ -9,7 +9,9 @@ import subprocess
 import signal
 import time
 import logging
+import logging.handlers
 from pathlib import Path
+from datetime import datetime
 
 # Load environment variables from .env file
 try:
@@ -18,12 +20,36 @@ try:
 except ImportError:
     pass
 
-# Configure orchestrator logging
-logger = logging.getLogger("hrvibe_orchestrator")
+# ------------- CONFIGURATION OF LOGGING -------------
+
+# Create logs directory
+data_dir = Path(os.getenv("USERS_DATA_DIR", "/users_data"))
+logs_dir = data_dir / "logs" / "orchestrator_logs"
+# Create logs directory and all parent directories if they don't exist
+logs_dir.mkdir(parents=True, exist_ok=True)
+# Create log file with timestamp
+log_filename = logs_dir / f"orchestrator_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+
+# Create rotating file handler
+file_handler = logging.handlers.RotatingFileHandler(
+    log_filename,
+    maxBytes=20 * 1024 * 1024,  # 20MB
+    backupCount=20,
+    encoding='utf-8'
+)
+
+# Configure logging with both file and console handlers
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        file_handler,
+        logging.StreamHandler(sys.stdout)  # Also write to console
+    ]
 )
+
+logger = logging.getLogger("hrvibe_orchestrator")
+logger.info(f"Orchestrator logging configured. Logs written to: {log_filename}")
 
 
 def start_bot_process(name: str, cwd: str) -> subprocess.Popen:
