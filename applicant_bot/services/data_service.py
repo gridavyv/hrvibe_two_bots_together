@@ -3,7 +3,7 @@
 import os
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -209,7 +209,7 @@ def create_new_applicant_in_applicant_bot_records(applicant_record_id: str) -> N
             "username": "",
             "first_name": "",
             "last_name": "",
-            "first_time_seen": datetime.now(timezone.utc).isoformat(),
+            "first_time_seen": datetime.now(timezone(timedelta(hours=3))).strftime("%Y-%m-%d %H:%M:%S"),
             "privacy_policy_confirmed": "no",  
             "privacy_policy_confirmation_time": "",  
             "welcome_video_shown": "no", 

@@ -153,6 +153,45 @@ async def send_message_to_admin(application: Application, text: str, parse_mode:
         logger.error(f"Failed to send admin notification: {e}", exc_info=True)
 
 
+async def admin_test_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    #TAGS: [admin]
+    """
+    Admin command to test the bot.
+    Only accessible to users whose ID is in the ADMIN_IDS whitelist.
+    """
+
+    try:
+        # ----- IDENTIFY USER and pull required data from records -----
+
+        bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        
+        #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
+
+        admin_id = os.getenv("ADMIN_ID", "")
+        if not admin_id:
+            await send_message_to_user(update, context, text="❌ Admin ID not configured.")
+            logger.error("ADMIN_ID environment variable is not set")
+            return
+        if bot_user_id != admin_id:
+            await send_message_to_user(update, context, text="❌ Unauthorized. Admin access required.")
+            logger.warning(f"Unauthorized admin command attempt from user {bot_user_id}. Allowed ID: {admin_id}")
+            return
+
+        # ----- SEND LIST OF USERS IDs from records -----
+
+        logger.info("Test command executed successfully")
+
+        await send_message_to_user(update, context, text=f"Test command executed successfully")
+    
+    except Exception as e:
+        logger.error(f"Failed to execute admin_get_list_of_users command: {e}", exc_info=True)        # Send notification to admin about the error
+        if context.application:
+            await send_message_to_admin(
+                application=context.application,
+                text=f"⚠️ Error executing admin_get_list_of_users command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+            )
+
+
 async def admin_get_list_of_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     #TAGS: [admin]
     """
@@ -1125,6 +1164,7 @@ async def handle_answer_select_vacancy(update: Update, context: ContextTypes.DEF
         # ------- CREATE VACANCY DIRECTORY  for selected vacancy and NESTED RESUMES DIRECTORIES  -------
 
         target_vacancy_id = str(callback_data)
+        logger.debug(f"Target vacancy id: {target_vacancy_id}")
         if target_vacancy_id:
             create_vacancy_directory(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id)
             create_resumes_directory_and_subdirectories(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_subdirectories=RESUME_SUBDIRECTORIES_LIST)

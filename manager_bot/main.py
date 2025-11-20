@@ -14,6 +14,7 @@ from manager_bot import (
     admin_status_of_applicants_video_command,
     admin_recommend_applicants_with_video_command,
     admin_send_message_to_user_command,
+    admin_test_command,
 )
 
 from services.data_service import (
@@ -77,6 +78,7 @@ async def run_manager_bot() -> None:
         raise RuntimeError("TELEGRAM_MANAGER_BOT_TOKEN not found in environment variables")
     application = create_manager_application(manager_token)
     application.add_handler(CommandHandler("start", _show_bottom_menu_on_start), group=-1)
+    application.add_handler(CommandHandler("admin_test", admin_test_command))
     application.add_handler(CommandHandler("admin_get_list_of_users", admin_get_list_of_users_command))
     application.add_handler(CommandHandler("admin_update_negotiations", admin_update_negotiations_command))
     application.add_handler(CommandHandler("admin_get_fresh_resumes", admin_get_fresh_resumes_command))

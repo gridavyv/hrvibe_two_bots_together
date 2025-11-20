@@ -72,6 +72,8 @@ SUCCESS_TO_SAVE_VIDEO_TEXT = (
 
 FAIL_TECHNICAL_SUPPORT_TEXT = "Произошла ошибка. Тех. поддержка уже спешит на помощь."
 FAIL_TO_DOWNLOAD_VIDEO_TEXT = "Ошибка при скачивании видео. Пришмите заново, пожалуйста."
+FAIL_TO_IDENTIFY_VIDEO_TEXT = "Не удалось определить видео. Пришлите, пожалуйста, еще раз не текст, не фото или аудио, а именно видео."
+FAIL_TO_IDENTIFY_PAYLOAD_TEXT = "Извините. Не удалось определить по какой вакансии и резюме вы пришли."
 
 
 # ----- USER MESSAGES CONSTANTS with MISSING DATA status-----
@@ -84,7 +86,6 @@ MISSING_VIDEO_RECORD_TEXT = "Нет видео для сохранения. Пр
 FEEDBACK_REQUEST_TEXT = "Напишите ваш вопрос или обратную связь в чате и я направлю ее админу."
 FEEDBACK_SENT_TEXT = "Ваше сообщение отправлено администратору. Спасибо за обратную связь!"
 FEEDBACK_ONLY_TEXT_ALLOWED_TEXT = "Пожалуйста, отправьте только текстовое сообщение. Видео, аудио и изображения пока не принимаются."
-FAIL_TO_IDENTIFY_PAYLOAD_TEXT = "Извините. Не удалось определить по какой вакансии и резюме вы пришли."
 
 
 INFO_UPLOADING_WELCOME_VIDEO_TEXT = "Уже загрузаю видео от менеджера..."
