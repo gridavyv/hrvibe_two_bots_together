@@ -52,27 +52,7 @@ from services.questionnaire_service import (
 )
 
 
-from services.constants import (
-    BTN_MENU,
-    BTN_FEEDBACK,
-    FAIL_TO_IDENTIFY_PAYLOAD_TEXT,
-    FAIL_TECHNICAL_SUPPORT_TEXT,
-    SUCCESS_TO_GET_PRIVACY_POLICY_CONFIRMATION_TEXT,
-    PRIVACY_POLICY_CONFIRMATION_TEXT_APPLICANT,
-    MISSING_PRIVACY_POLICY_CONFIRMATION_TEXT,
-    SUCCESS_TO_GET_WELCOME_VIDEO_TEXT,
-    INFO_UPLOADING_WELCOME_VIDEO_TEXT,
-    INFO_VIDEO_ALREADY_SAVED_TEXT,
-    WELCOME_VIDEO_RECORD_REQUEST_TEXT,
-    INSTRUCTIONS_TO_SHOOT_VIDEO_TEXT,
-    CONTINUE_WITHIOUT_APPLICANT_VIDEO_TEXT,
-    VIDEO_SENDING_CONFIRMATION_TEXT,
-    MISSING_VIDEO_RECORD_TEXT,
-    WAITING_FOR_ANOTHER_VIDEO_TEXT,
-    FEEDBACK_REQUEST_TEXT,
-    FEEDBACK_SENT_TEXT,
-    FEEDBACK_ONLY_TEXT_ALLOWED_TEXT,
-)
+from services.constants import *
 
 
 ########################################################
@@ -643,16 +623,12 @@ async def admin_get_list_of_applicants_command(update: Update, context: ContextT
 
     bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
     
-    #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
+        #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
 
     admin_id = os.getenv("ADMIN_ID", "")
-    if not admin_id:
-        await send_message_to_user(update, context, text="❌ Admin ID not configured.")
-        logger.error("ADMIN_ID environment variable is not set")
-        return
-    if bot_user_id != admin_id:
-        await send_message_to_user(update, context, text="❌ Unauthorized. Admin access required.")
-        logger.warning(f"Unauthorized admin command attempt from user {bot_user_id}. Allowed ID: {admin_id}")
+    if not admin_id or bot_user_id != admin_id:
+        await send_message_to_user(update, context, text=FAIL_TO_IDENTIFY_USER_AS_ADMIN_TEXT)
+        logger.error(f"Unauthorized for {bot_user_id}")
         return
 
     # ----- SEND LIST OF USERS IDs from records -----
@@ -679,16 +655,13 @@ async def admin_send_message_to_applicant_command(update: Update, context: Conte
 
         bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
         
+    
         #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
 
         admin_id = os.getenv("ADMIN_ID", "")
-        if not admin_id:
-            await send_message_to_user(update, context, text="❌ Admin ID not configured.")
-            logger.error("ADMIN_ID environment variable is not set")
-            return
-        if bot_user_id != admin_id:
-            await send_message_to_user(update, context, text="❌ Unauthorized. Admin access required.")
-            logger.warning(f"Unauthorized admin command attempt from user {bot_user_id}. Allowed ID: {admin_id}")
+        if not admin_id or bot_user_id != admin_id:
+            await send_message_to_user(update, context, text=FAIL_TO_IDENTIFY_USER_AS_ADMIN_TEXT)
+            logger.error(f"Unauthorized for {bot_user_id}")
             return
 
         # ----- PARSE COMMAND ARGUMENTS -----

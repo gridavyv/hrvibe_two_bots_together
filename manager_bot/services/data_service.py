@@ -1,4 +1,4 @@
-# TAGS: [status_validation], [get_data], [create_data], [update_data], [directory_path], [file_path], [format_data]
+# TAGS: [status_validation], [get_data], [create_data], [update_data], [directory_path], [file_path], [persistent_keyboard], [format_data]
 
 import os
 import json
@@ -450,7 +450,7 @@ def get_list_of_passed_resume_ids_with_video(bot_user_id: str, vacancy_id: str) 
             # Collect resume id for passed resumes WITH video
             if resume_record_data["resume_video_received"] == "yes":
                 list_of_passed_resume_ids_with_video.append(resume_id)
-    logger.debug(f"get_list_of_passed_resume_ids_with_video: List of passed resume IDs with video: {list_of_passed_resume_ids_with_video}")
+    logger.debug(f": List of passed resume IDs with video: {list_of_passed_resume_ids_with_video}")
     return list_of_passed_resume_ids_with_video
 
 
@@ -556,6 +556,14 @@ def get_employer_id_from_records(record_id: str) -> Optional[str]:
         return None
 
 
+def get_list_of_users_from_records() -> list[str]:
+    # TAGS: [get_data]
+    """Get list of users from users records."""
+    users_records_file_path = get_users_records_file_path()
+    with open(users_records_file_path, "r", encoding="utf-8") as f:
+        records = json.load(f)
+    return list(records.keys())
+
 # ****** METHODS with TAGS: [update_data] ******
 
 def update_user_records_with_top_level_key(record_id: int | str, key: str, value: str | int | bool | dict | list) -> None:
@@ -589,8 +597,12 @@ def update_resume_record_with_top_level_key(bot_user_id: str, vacancy_id: str, r
         logger.debug(f"Skipping update: {resume_record_id} does not exist in the file {resume_records_path}")
 
 
+# ****** METHODS with TAGS: [persistent_keyboard] ******
+
+
 def get_persistent_keyboard_messages(bot_user_id: str) -> list[tuple[int, int]]:
-    """Get persistent keyboard message IDs for a user. Returns list of (chat_id, message_id) tuples. TAGS: [get_data]"""
+    # TAGS: [persistent_keyboard]
+    """Get persistent keyboard message IDs for a user. Returns list of (chat_id, message_id) tuples."""
     users_records_file_path = get_users_records_file_path()
     try:
         with open(users_records_file_path, "r", encoding="utf-8") as f:
@@ -606,7 +618,8 @@ def get_persistent_keyboard_messages(bot_user_id: str) -> list[tuple[int, int]]:
 
 
 def add_persistent_keyboard_message(bot_user_id: str, chat_id: int, message_id: int) -> None:
-    """Add a keyboard message ID to persistent storage. TAGS: [update_data]"""
+    # TAGS: [persistent_keyboard]
+    """Add a keyboard message ID to persistent storage."""
     users_records_file_path = get_users_records_file_path()
     try:
         with open(users_records_file_path, "r", encoding="utf-8") as f:
@@ -632,7 +645,8 @@ def add_persistent_keyboard_message(bot_user_id: str, chat_id: int, message_id: 
 
 
 def remove_persistent_keyboard_message(bot_user_id: str, chat_id: int, message_id: int) -> None:
-    """Remove a keyboard message ID from persistent storage. TAGS: [update_data]"""
+    # TAGS: [persistent_keyboard]
+    """Remove a keyboard message ID from persistent storage."""
     users_records_file_path = get_users_records_file_path()
     try:
         with open(users_records_file_path, "r", encoding="utf-8") as f:
@@ -654,7 +668,8 @@ def remove_persistent_keyboard_message(bot_user_id: str, chat_id: int, message_i
 
 
 def clear_all_persistent_keyboard_messages(bot_user_id: str) -> None:
-    """Clear all persistent keyboard messages for a user. TAGS: [update_data]"""
+    # TAGS: [persistent_keyboard]
+    """Clear all persistent keyboard messages for a user."""
     users_records_file_path = get_users_records_file_path()
     try:
         with open(users_records_file_path, "r", encoding="utf-8") as f:

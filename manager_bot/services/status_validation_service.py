@@ -221,3 +221,18 @@ def is_applicant_video_recorded(bot_user_id: str, vacancy_id: str, resume_id: st
     else:
         logger.debug(f"'resume_id': {resume_id} is not found in {resume_records_file_path}")
         return False
+
+
+def is_vacany_data_enough_for_resume_analysis(user_id: str) -> bool:
+    # TAGS: [status_validation]
+    """
+    Check if everything is ready for resume analysis.
+    Validates that user is authorized, vacancy is selected, vacancy description is received, and sourcing criterias are received.
+    """
+    return (
+        is_user_authorized(record_id=user_id) and
+        is_vacancy_selected(record_id=user_id) and
+        is_vacancy_description_recieved(record_id=user_id) and
+        is_vacancy_sourcing_criterias_recieved(record_id=user_id)
+    )
+

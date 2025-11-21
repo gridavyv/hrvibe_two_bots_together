@@ -99,6 +99,7 @@ SUCCESS_TO_START_SOURCING_TEXT = "Пошел искать кандидатов �
 
 FAIL_TECHNICAL_SUPPORT_TEXT = "Произошла ошибка. Тех. поддержка уже спешит на помощь."
 FAILED_TO_GET_OPEN_VACANCIES_TEXT = f"Не удалось получить открытые вакансии.\nВозможно, у вас нет открытых вакансий или произошла ошибка.\nРазместите вакансию на сайте HeadHunter и попробуйте еще раз.\n{INFO_ABOUT_MENU_TEXT}"
+FAIL_TO_IDENTIFY_USER_AS_ADMIN_TEXT = "⚠️ Unauthorized. Admin access required."
 
 # ----- USER MESSAGES CONSTANTS with MISSING DATA status-----
 

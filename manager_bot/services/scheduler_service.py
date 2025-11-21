@@ -15,6 +15,7 @@ from services.status_validation_service import (
     is_vacancy_description_recieved,
     is_vacancy_sourcing_criterias_recieved,
     is_user_authorized,
+    is_vacany_data_enough_for_resume_analysis,
 )
 
 logger = logging.getLogger(__name__)
@@ -122,14 +123,4 @@ async def run_periodic_task_for_all_users(
             continue
 
 
-def is_vacany_data_enough_for_resume_analysis(user_id: str) -> bool:
-    """
-    Check if everything is ready for source_negotiations.
-    """
-    return (
-        is_user_authorized(record_id=user_id) and
-        is_vacancy_selected(record_id=user_id) and
-        is_vacancy_description_recieved(record_id=user_id) and
-        is_vacancy_sourcing_criterias_recieved(record_id=user_id)
-    )
 

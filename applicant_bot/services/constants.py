@@ -74,7 +74,7 @@ FAIL_TECHNICAL_SUPPORT_TEXT = "Произошла ошибка. Тех. подд
 FAIL_TO_DOWNLOAD_VIDEO_TEXT = "Ошибка при скачивании видео. Пришмите заново, пожалуйста."
 FAIL_TO_IDENTIFY_VIDEO_TEXT = "Не удалось определить видео. Пришлите, пожалуйста, еще раз не текст, не фото или аудио, а именно видео."
 FAIL_TO_IDENTIFY_PAYLOAD_TEXT = "Извините. Не удалось определить по какой вакансии и резюме вы пришли."
-
+FAIL_TO_IDENTIFY_USER_AS_ADMIN_TEXT = "⚠️ Unauthorized. Admin access required."
 
 # ----- USER MESSAGES CONSTANTS with MISSING DATA status-----
 
