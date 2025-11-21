@@ -1901,9 +1901,30 @@ async def recommend_resumes_with_video_command(bot_user_id: str, application: Ap
                     # cannot use "questionnaire_service.py", because requires update and context objects
                     
                     # Create inline keyboard with invite button
+                    # Validate values are not None and convert to strings
+                    if not bot_user_id or not target_vacancy_id or not resume_id:
+                        logger.error(f"recommend_resumes_with_video_command: Missing required values for callback_data. bot_user_id: {bot_user_id}, target_vacancy_id: {target_vacancy_id}, resume_id: {resume_id}")
+                        raise ValueError(f"Missing required values for invite button callback_data")
+                    
+                    # Telegram callback_data limit is 64 bytes, so we need to ensure it's not too long
+                    callback_data = f"{INVITE_TO_INTERVIEW_CALLBACK_PREFIX}:{bot_user_id}:{target_vacancy_id}:{resume_id}"
+                    callback_data_bytes = len(callback_data.encode('utf-8'))
+                    
+                    if callback_data_bytes > 64:
+                        logger.warning(f"recommend_resumes_with_video_command: Callback data too long ({callback_data_bytes} bytes), truncating resume_id")
+                        # Calculate available space: prefix + separators + bot_user_id + target_vacancy_id
+                        base_length = len(f"{INVITE_TO_INTERVIEW_CALLBACK_PREFIX}:{bot_user_id}:{target_vacancy_id}:")
+                        max_resume_id_length = 64 - base_length - 1  # -1 for safety margin
+                        if max_resume_id_length > 0:
+                            truncated_resume_id = resume_id[:max_resume_id_length]
+                            callback_data = f"{INVITE_TO_INTERVIEW_CALLBACK_PREFIX}:{bot_user_id}:{target_vacancy_id}:{truncated_resume_id}"
+                        else:
+                            logger.error(f"recommend_resumes_with_video_command: Cannot create valid callback_data, base length too long")
+                            raise ValueError(f"Callback data base length exceeds Telegram limit")
+                    
                     invite_button = InlineKeyboardButton(
                         text=BTN_INVITE_TO_INTERVIEW,
-                        callback_data=f"{INVITE_TO_INTERVIEW_CALLBACK_PREFIX}:{bot_user_id}:{target_vacancy_id}:{resume_id}"
+                        callback_data=callback_data
                     )
                     keyboard = InlineKeyboardMarkup([[invite_button]])
                     await application.bot.send_message(
