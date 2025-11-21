@@ -1542,11 +1542,26 @@ async def source_resumes_triggered_by_admin_command(bot_user_id: str) -> None:
         
         for contact in contacts_list:
             # Handle both "value" and "contact_value" keys
-            contact_data = contact.get("contact_value")
+            contact_data = contact.get("contact_value") or contact.get("value")
+            
+            # Skip if contact_data is None or not a string
+            if not isinstance(contact_data, str):
+                continue
+            
+            # Filter email by '@' sign
             if "@" in contact_data:
                 email = contact_data
-            else:
+            elif not phone:
+                # If it's a string but not email, assume it's phone (if phone not set yet)
                 phone = contact_data
+        
+        # Log warning if contact data is missing
+        if not phone and not email:
+            logger.warning(f"source_resumes_triggered_by_admin_command: No contact information found for resume {resume_id}")
+        elif not phone:
+            logger.debug(f"source_resumes_triggered_by_admin_command: No phone found for resume {resume_id}, email: {email}")
+        elif not email:
+            logger.debug(f"source_resumes_triggered_by_admin_command: No email found for resume {resume_id}, phone: {phone}")
 
         update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="negotiation_id", value=negotiation_id)
         update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="first_name", value=first_name)
