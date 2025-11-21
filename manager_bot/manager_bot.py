@@ -337,7 +337,6 @@ async def admin_update_resume_records_with_applicants_video_status_for_all_comma
 
         bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
         logger.info(f"admin_update_resume_records_with_applicants_video_status_for_all_command: started. User_id: {bot_user_id}")
-        target_vacancy_id = get_target_vacancy_id_from_records(record_id=bot_user_id)
 
         #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
 
@@ -354,8 +353,13 @@ async def admin_update_resume_records_with_applicants_video_status_for_all_comma
         videos_updated = 0
         for user_id in user_ids:
             if is_vacany_data_enough_for_resume_analysis(user_id=user_id):
-                await update_resume_records_with_fresh_video_from_applicants_command(bot_user_id=user_id, vacancy_id=target_vacancy_id, application=context.application)
-                videos_updated += 1
+                # Get vacancy_id for each user individually
+                user_vacancy_id = get_target_vacancy_id_from_records(record_id=user_id)
+                if user_vacancy_id:
+                    await update_resume_records_with_fresh_video_from_applicants_command(bot_user_id=user_id, vacancy_id=user_vacancy_id, application=context.application)
+                    videos_updated += 1
+                else:
+                    logger.debug(f"admin_update_resume_records_with_applicants_video_status_for_all_command: User {user_id} does not have a vacancy selected. Video update skipped.")
             else:
                 logger.debug(f"admin_update_resume_records_with_applicants_video_status_for_all_command: User {user_id} does not have enough vacancy data for resume analysis. Video update skipped.")
 

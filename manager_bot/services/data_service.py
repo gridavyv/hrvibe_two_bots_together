@@ -191,7 +191,6 @@ def create_record_for_new_resume_id_in_resume_records(bot_user_id: str, vacancy_
             "last_name": "",
             "phone": "",
             "email": "",
-            "hh_email": "",
             "ai_analysis": {},
             "resume_sorting_status": "new",
             "request_to_shoot_resume_video_sent": "no",
