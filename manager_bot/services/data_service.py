@@ -379,15 +379,6 @@ def get_decision_status_from_selected_callback_code(selected_callback_code: str)
         return selected_callback_code
 
 
-def get_bot_user_id_from_collected_data(data: dict) -> Optional[str]:
-    """Get bot_user_id from collected dictionary. TAGS: [get_data]"""
-    if "tg_user_id" in data:
-        return str(data["tg_user_id"])
-    else:
-        logger.debug("'tg_user_id' not found in collected data.")
-        return None
-
-
 def get_access_token_from_callback_endpoint_resp(endpoint_response: dict) -> Optional[str]:
     """Get access token from endpoint response. TAGS: [get_data]"""
     if isinstance(endpoint_response, dict):

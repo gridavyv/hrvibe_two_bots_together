@@ -232,7 +232,7 @@ async def admin_update_negotiations_command(update: Update, context: ContextType
             if is_vacany_data_enough_for_resume_analysis(user_id=user_id):
                 await source_negotiations_triggered_by_admin_command(bot_user_id=user_id)
             else:
-                logger.debug(f"User {user_id} is not ready for negotiations, resume source and analysis.")
+                logger.debug(f"User {user_id} is not ready for negotiations collections, resume source and analysis.")
 
         await send_message_to_user(update, context, text=f"Negotiations updated for {len(user_ids)} users.")
     
