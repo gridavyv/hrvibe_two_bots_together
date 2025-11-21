@@ -12,7 +12,7 @@ from manager_bot import (
     admin_get_fresh_resumes_for_all_command,
     admin_anazlyze_resumes_for_all_command,
     admin_update_resume_records_with_applicants_video_status_for_all_command,
-    admin_recommend_applicants_with_video_command,
+    admin_recommend_applicants_with_video_for_all_command,
     admin_send_message_command,
 )
 
@@ -82,7 +82,7 @@ async def run_manager_bot() -> None:
     application.add_handler(CommandHandler("admin_get_fresh_resumes_for_all", admin_get_fresh_resumes_for_all_command))
     application.add_handler(CommandHandler("admin_analyze_resumes_for_all", admin_anazlyze_resumes_for_all_command))
     application.add_handler(CommandHandler("admin_update_video_for_all", admin_update_resume_records_with_applicants_video_status_for_all_command))
-    application.add_handler(CommandHandler("admin_recommend_for_all", admin_recommend_applicants_with_video_command))
+    application.add_handler(CommandHandler("admin_recommend_for_all", admin_recommend_applicants_with_video_for_all_command))
     application.add_handler(CommandHandler("admin_send_message", admin_send_message_command))
     
     # ------------- STARTING OF THE TASK QUEUE WORKER for AI related tasks-------------
