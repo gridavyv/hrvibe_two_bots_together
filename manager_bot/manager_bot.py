@@ -915,6 +915,8 @@ async def handle_answer_video_record_request(update: Update, context: ContextTyp
     if video_record_request_user_decision == "yes":
         logger.debug(f"Video record request user decision is yes")
         await send_message_to_user(update, context, text=INSTRUCTIONS_TO_SHOOT_VIDEO_TEXT)
+        await asyncio.sleep(1)
+        await send_message_to_user(update, context, text=INFO_DROP_VIDEO_HERE_TEXT)
         
         # ----- NOW HANDLER LISTENING FOR VIDEO from user -----
 
@@ -1380,6 +1382,8 @@ async def get_sourcing_criterias_from_ai_and_save_to_file(
             text=f"Проанализировал вакансию и буду отбирать кандидатов по следующим критериям:\n\n{formatted_result}",
             parse_mode=ParseMode.MARKDOWN
         )
+        await asyncio.sleep(1)
+        await send_message_to_user(update, context, text=SUCCESS_TO_START_SOURCING_TEXT)
         
     except Exception as e:
         logger.error(f"Failed to process vacancy analysis: {e}", exc_info=True)        # Send notification to admin about the error
