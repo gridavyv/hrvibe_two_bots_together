@@ -47,6 +47,7 @@ from services.status_validation_service import (
     is_resume_records_file_not_empty,
     is_manager_privacy_policy_confirmed,
     is_applicant_video_recorded,
+    is_resume_accepted,
 )
 
 
@@ -65,7 +66,7 @@ from services.data_service import (
     get_vacancy_directory,
     create_resumes_directory_and_subdirectories,
     create_record_for_new_resume_id_in_resume_records,
-    get_resume_recommendation_from_resume_records,
+    get_resume_recommendation_text_from_resume_records,
     update_resume_record_with_top_level_key,
     get_resume_directory,
     create_record_for_new_user_in_records, 
@@ -75,7 +76,7 @@ from services.data_service import (
     create_json_file_with_dictionary_content,
     get_target_vacancy_id_from_records,
     get_target_vacancy_name_from_records,
-    get_list_of_passed_resume_ids_with_video,
+    get_list_of_resume_ids_for_recommendation,
     get_negotiation_id_from_resume_record,
     get_users_records_file_path,
     get_employer_id_from_records,
@@ -377,7 +378,7 @@ async def admin_update_resume_records_with_applicants_video_status_for_all_comma
             ) 
 
 
-async def admin_recommend_applicants_with_video_for_all_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def admin_recommend_resumes_for_all_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     #TAGS: [admin]
     """
     Admin command to recommend applicants with video for all users.
@@ -388,7 +389,7 @@ async def admin_recommend_applicants_with_video_for_all_command(update: Update, 
         # ----- IDENTIFY USER and pull required data from records -----
 
         bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
-        logger.info(f"admin_recommend_applicants_with_video_for_all_command: started. User_id: {bot_user_id}")
+        logger.info(f"admin_recommend_resumes_for_all_command: started. User_id: {bot_user_id}")
         
         #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
 
@@ -405,26 +406,26 @@ async def admin_recommend_applicants_with_video_for_all_command(update: Update, 
         for user_id in user_ids:
             if is_vacany_data_enough_for_resume_analysis(user_id=user_id):
                 target_vacancy_id = get_target_vacancy_id_from_records(record_id=user_id)
-                passed_resume_ids_with_video = get_list_of_passed_resume_ids_with_video(bot_user_id=user_id, vacancy_id=target_vacancy_id)
+                resume_ids_for_recommendation = get_list_of_resume_ids_for_recommendation(bot_user_id=user_id, vacancy_id=target_vacancy_id)
                 # means manager has passed resumes with video
-                if len(passed_resume_ids_with_video) > 0:
-                    await recommend_resumes_with_video_command(bot_user_id=user_id, application=context.application)
+                if len(resume_ids_for_recommendation) > 0:
+                    await recommend_resumes_command(bot_user_id=user_id, application=context.application)
                     recommendation_tasks += 1
                 else:
-                    logger.debug(f"admin_recommend_applicants_with_video_for_all_command: User {user_id} does not have passed resumes with video. Recommendation skipped.")
+                    logger.debug(f"admin_recommend_resumes_for_all_command: User {user_id} does not have passed resumes with video. Recommendation skipped.")
             else:
-                logger.debug(f"admin_recommend_applicants_with_video_for_all_command: User {user_id} does not have enough data to analyze resumes. Recommendation skipped.")
+                logger.debug(f"admin_recommend_resumes_for_all_command: User {user_id} does not have enough data to analyze resumes. Recommendation skipped.")
                 
         admin_update_text = f"Total users: {len(user_ids)}. Recomendation of resumes with video triggered for: {recommendation_tasks} users."
         await send_message_to_user(update, context, text=admin_update_text)
     
     except Exception as e:
-        logger.error(f"admin_recommend_applicants_with_video_for_all_command: Failed to execute command: {e}", exc_info=True)
+        logger.error(f"admin_recommend_resumes_for_all_command: Failed to execute command: {e}", exc_info=True)
         # Send notification to admin about the error
         if context.application:
             await send_message_to_admin(
                 application=context.application,
-                text=f"⚠️ Error admin_recommend_applicants_with_video_for_all_command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+                text=f"⚠️ Error admin_recommend_resumes_for_all_command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
             )
 
 
@@ -1650,6 +1651,7 @@ async def source_resumes_triggered_by_admin_command(bot_user_id: str) -> None:
         update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="last_name", value=last_name)
         update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="phone", value=phone)
         update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="email", value=email)
+        # If cannot update resume records, ValueError is raised from method: update_resume_record_with_top_level_key()
 
     logger.info(f"source_resumes_triggered_by_admin_command:Found {len(fresh_resume_ids_list)} new resumes")
 
@@ -1763,7 +1765,8 @@ async def resume_analysis_from_ai_to_user_sort_resume(
             key="ai_analysis",
             value=ai_analysis_result
         )
-        
+        # If cannot update resume records, ValueError is raised from method: update_resume_record_with_top_level_key()
+
         # Send message to applicant
         await send_message_to_applicant_command(bot_user_id=bot_user_id, resume_id=resume_id)
         
@@ -1781,6 +1784,7 @@ async def resume_analysis_from_ai_to_user_sort_resume(
                 key="resume_sorting_status",
                 value="passed"
             )
+            # If cannot update resume records, ValueError is raised from method: update_resume_record_with_top_level_key()
         else:
             shutil.move(resume_json_path, failed_resume_data_path)
             update_resume_record_with_top_level_key(
@@ -1790,7 +1794,7 @@ async def resume_analysis_from_ai_to_user_sort_resume(
                 key="resume_sorting_status",
                 value="failed"
             )
-                   
+            # If cannot update resume records, ValueError is raised from method: update_resume_record_with_top_level_key()
     except Exception as e:
         logger.error(f"Failed to process resume analysis for {resume_id}: {e}", exc_info=True)
 
@@ -1824,7 +1828,7 @@ async def send_message_to_applicant_command(bot_user_id: str, resume_id: str) ->
 
     new_status_of_request_to_shoot_resume_video = "yes"
     update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="request_to_shoot_resume_video_sent", value=new_status_of_request_to_shoot_resume_video)
-
+    # If cannot update resume records, ValueError is raised from method: update_resume_record_with_top_level_key()
 
 async def change_employer_state_command(bot_user_id: str, resume_id: str) -> None:
     # TAGS: [resume_related]
@@ -1881,7 +1885,7 @@ async def update_resume_records_with_fresh_video_from_applicants_command(bot_use
                 fresh_videos_list.append(resume_id)
                 update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=vacancy_id, resume_record_id=resume_id, key="resume_video_received", value="yes")
                 update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=vacancy_id, resume_record_id=resume_id, key="resume_video_path", value=str(video_path))
-        
+                # If cannot update resume records, ValueError is raised from method: update_resume_record_with_top_level_key()
         logger.debug(f"update_resume_records_with_fresh_video_from_applicants_command: {len(fresh_videos_list)} fresh videos have been found and updated in resume records")
     
     except Exception as e:
@@ -1894,12 +1898,15 @@ async def update_resume_records_with_fresh_video_from_applicants_command(bot_use
             )
 
 
-async def recommend_resumes_with_video_command(bot_user_id: str, application: Application) -> None:
+async def recommend_resumes_command(bot_user_id: str, application: Application) -> None:
     # TAGS: [recommendation_related]
-    """Recommend resumes with video for all users.
+    """Recommend resumes. Criteria:
+    1. Resume is passed
+    2. Resume has video
+    3. Resume is not recommended yet
     Sends notification to admin if fails"""
 
-    logger.info(f"recommend_resumes_with_video_command started. user_id: {bot_user_id}")
+    logger.info(f"recommend_resumes_command: started. user_id: {bot_user_id}")
 
     # ----- IDENTIFY USER and pull required data from records -----
         
@@ -1923,109 +1930,78 @@ async def recommend_resumes_with_video_command(bot_user_id: str, application: Ap
 
     try:
 
-        # ----- GET LIST of RESUME IDs that have not been recommended yet -----
+        # ----- GET LIST of RESUME IDs that passed and have video -----
 
-        passed_resume_ids_with_video = get_list_of_passed_resume_ids_with_video(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id)
-        logger.debug(f"recommend_resumes_with_video_command: List of resume IDs with video: {passed_resume_ids_with_video} has been fetched.")
+        resume_ids_for_recommendation = get_list_of_resume_ids_for_recommendation(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id)
+        logger.debug(f"recommend_resumes_command: List of resume IDs for recommendation has been fetched: {resume_ids_for_recommendation}.")
 
         # ----- COMMUNICATE SUMMARY of recommendation -----
 
-        num_of_passed_resume_ids_with_video = len(passed_resume_ids_with_video)
+        num_resume_ids_for_recommendation = len(resume_ids_for_recommendation)
         # if there are no suitable applicants, communicate the result
-        if num_of_passed_resume_ids_with_video == 0:
+        if num_resume_ids_for_recommendation == 0:
             if application and application.bot:
+                logger.info(f"recommend_resumes_command: No suitable resumes found for recommendation. Sending message to user {bot_user_id}.")
                 await application.bot.send_message(chat_id=int(bot_user_id), text=f"Вакансия: '{target_vacancy_name}'.\nПока нет подходящих кандидатов, записавших видео визитку.")
             else:
-                logger.warning(f"recommend_resumes_with_video_command: Cannot send message to user {bot_user_id}: application or bot instance not provided")
+                logger.warning(f"recommend_resumes_command: Cannot send message to user {bot_user_id}: application or bot instance not provided")
             return
-
-        summary_text = (
-                f"Вакансия '{target_vacancy_name}'\n"
-                f"Могу порекомендовать '{num_of_passed_resume_ids_with_video}' подходящих кандидатов, записавших видео визитки."
-            )
-        if application and application.bot:
-            await application.bot.send_message(chat_id=int(bot_user_id), text=summary_text, parse_mode=ParseMode.HTML)
-            await asyncio.sleep(1)
-        else:
-            logger.warning(f"recommend_resumes_with_video_command: Cannot send message to user {bot_user_id}: application or bot instance not provided")
-        await asyncio.sleep(1)
 
         # ----- COMMUNICATE RESULT of resumes with video -----
 
-        #set counter to number the recommendations
-        recommendation_num = 1
         # build text based on data from resume records
-        for resume_id in passed_resume_ids_with_video:
+        for resume_id in resume_ids_for_recommendation:
 
             # ----- GET RECOMMENDATION TEXT and VIDEO PATH for each applicant -----
 
-            # Get recommendation text for each applicant
-            recommendation_title = f"<b>Рекомендация #{recommendation_num}</b>\n"
-            recommendation_body = get_resume_recommendation_from_resume_records(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id)
-            recommendation_text = f"{recommendation_title}{recommendation_body}"
+            recommendation_text = get_resume_recommendation_text_from_resume_records(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id)
+            # If nothing in resume records, ValueError is raised from method: get_resume_recommendation_text_from_resume_records()
 
-            # Get video file path for each applicant
             applicant_video_file_path = get_path_to_video_from_applicant_from_resume_records(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id)
+            # If nothing in resume records, ValueError is raised from method: get_path_to_video_from_applicant_from_resume_records()
 
             # ----- SEND RECOMMENDATION TEXT and VIDEO for each applicant -----
             
             if application and application.bot:
                 await application.bot.send_message(chat_id=int(bot_user_id), text=recommendation_text, parse_mode=ParseMode.HTML)
-                if applicant_video_file_path:
-                    await application.bot.send_video(chat_id=int(bot_user_id), video=str(applicant_video_file_path))
-                    logger.info(f"recommend_resumes_with_video_command: Video for resume {resume_id} has been successfully sent to user {bot_user_id}")
-                    
-                    # ----- SEND BUTTON TO INVITE APPLICANT TO INTERVIEW -----
-                    # cannot use "questionnaire_service.py", because requires update and context objects
-                    
-                    # Create inline keyboard with invite button
-                    # Validate values are not None and convert to strings
-                    if not bot_user_id or not target_vacancy_id or not resume_id:
-                        logger.error(f"recommend_resumes_with_video_command: Missing required values for callback_data. bot_user_id: {bot_user_id}, target_vacancy_id: {target_vacancy_id}, resume_id: {resume_id}")
-                        raise ValueError(f"Missing required values for invite button callback_data")
-                    
-                    # Telegram callback_data limit is 64 bytes, so we need to ensure it's not too long
-                    callback_data = f"{INVITE_TO_INTERVIEW_CALLBACK_PREFIX}:{bot_user_id}:{target_vacancy_id}:{resume_id}"
-                    callback_data_bytes = len(callback_data.encode('utf-8'))
-                    
-                    if callback_data_bytes > 64:
-                        logger.warning(f"recommend_resumes_with_video_command: Callback data too long ({callback_data_bytes} bytes), truncating resume_id")
-                        # Calculate available space: prefix + separators + bot_user_id + target_vacancy_id
-                        base_length = len(f"{INVITE_TO_INTERVIEW_CALLBACK_PREFIX}:{bot_user_id}:{target_vacancy_id}:")
-                        max_resume_id_length = 64 - base_length - 1  # -1 for safety margin
-                        if max_resume_id_length > 0:
-                            truncated_resume_id = resume_id[:max_resume_id_length]
-                            callback_data = f"{INVITE_TO_INTERVIEW_CALLBACK_PREFIX}:{bot_user_id}:{target_vacancy_id}:{truncated_resume_id}"
-                        else:
-                            logger.error(f"recommend_resumes_with_video_command: Cannot create valid callback_data, base length too long")
-                            raise ValueError(f"Callback data base length exceeds Telegram limit")
-                    
-                    invite_button = InlineKeyboardButton(
-                        text=BTN_INVITE_TO_INTERVIEW,
-                        callback_data=callback_data
-                    )
-                    keyboard = InlineKeyboardMarkup([[invite_button]])
-                    await application.bot.send_message(
-                        chat_id=int(bot_user_id),
-                        text=f"Хотите пригласить кандидата на интервью?", 
-                        parse_mode=ParseMode.HTML,
-                        reply_markup=keyboard
-                    )
-                else:
-                    raise ValueError(f"recommend_resumes_with_video_command: Cannot send video to user {bot_user_id}: video file not found for resume {resume_id}")
+                logger.info(f"recommend_resumes_command: Recomendation text for resume {resume_id} has been successfully sent to user {bot_user_id}")
+
+                await application.bot.send_video(chat_id=int(bot_user_id), video=str(applicant_video_file_path))
+                logger.info(f"recommend_resumes_command: Video for resume {resume_id} has been successfully sent to user {bot_user_id}")
+
+                update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="resume_recommended", value="yes")
+                # If cannot update resume records, ValueError is raised from method: update_resume_record_with_top_level_key()
+                logger.info(f"recommend_resumes_command: Resume records for resume {resume_id} has been successfully updated with recommended status 'yes'")
+                
+                # ----- SEND BUTTON TO INVITE APPLICANT TO INTERVIEW -----
+                # cannot use "questionnaire_service.py", because requires update and context objects
+                
+                # Create inline keyboard with invite button
+                if not resume_id:
+                    raise ValueError(f"Missing required resume_id for invite button callback_data")
+                
+                callback_data = f"{INVITE_TO_INTERVIEW_CALLBACK_PREFIX}:{resume_id}"
+                
+                invite_button = InlineKeyboardButton(
+                    text=BTN_INVITE_TO_INTERVIEW,
+                    callback_data=callback_data
+                )
+                keyboard = InlineKeyboardMarkup([[invite_button]])
+                await application.bot.send_message(
+                    chat_id=int(bot_user_id),
+                    text=f"Хотите пригласить кандидата на интервью?", 
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=keyboard
+                )
             else:
-                logger.warning(f"recommend_resumes_with_video_command: Cannot send message to user {bot_user_id}: application or bot instance not provided")
-            recommendation_num += 1
-    
+                raise ValueError(f"Missing required application or bot instance for sending message to user {bot_user_id}")    
     except Exception as e:
-        logger.error(f"recommend_resumes_with_video_command: Failed to recommend resumes with video: {e}", exc_info=True)
-        if application and application.bot:
-            await application.bot.send_message(chat_id=int(bot_user_id), text=FAIL_TECHNICAL_SUPPORT_TEXT)
+        logger.error(f"recommend_resumes_command: Failed: {e}", exc_info=True)
         # Send notification to admin about the error
         if application:
             await send_message_to_admin(
                 application=application,
-                text=f"⚠️ Error recommend_resumes_with_video_command: {e}\nUser ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+                text=f"⚠️ Error recommend_resumes_command: {e}\nUser ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
             )
 
 
@@ -2033,8 +2009,6 @@ async def handle_invite_to_interview_button(update: Update, context: ContextType
     # TAGS: [recommendation_related]
     """Handle invite to interview button click. Sends notification to admin.
     Sends notification to admin if fails"""
-
-    logger.info(f"handle_invite_to_interview_button started. user_id: {bot_user_id}")
     
     if not update.callback_query:
         return
@@ -2043,6 +2017,7 @@ async def handle_invite_to_interview_button(update: Update, context: ContextType
         # ----- IDENTIFY USER and pull required data from callback -----
         
         bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        logger.info(f"handle_invite_to_interview_button started. user_id: {bot_user_id}")
         
         # Use handle_answer() from questionnaire_service to extract callback_data and handle keyboard removal
         callback_data = await handle_answer(update, context, remove_keyboard=True)
@@ -2054,12 +2029,16 @@ async def handle_invite_to_interview_button(update: Update, context: ContextType
         # ----- EXTRACT DATA from callback_data -----
 
         parts = callback_data.split(":")
-        if len(parts) != 4:
+        if len(parts) != 2:
             raise ValueError(f"Invalid callback_data format for invite to interview: {callback_data}")
         
         # Unpack (destruct) tuple to assign values from a list to variables.
-        callback_prefix, user_id, vacancy_id, resume_id = parts
-        vacancy_name = get_target_vacancy_name_from_records(record_id=user_id)
+        callback_prefix, resume_id = parts
+        
+        # Get user_id and vacancy_id from records (user_id is bot_user_id from update)
+        user_id = bot_user_id
+        vacancy_id = get_target_vacancy_id_from_records(record_id=bot_user_id)
+        vacancy_name = get_target_vacancy_name_from_records(record_id=bot_user_id)
 
         # ----- SEND NOTIFICATION TO ADMIN -----
             
@@ -2107,11 +2086,9 @@ async def user_status(bot_user_id: str) -> dict:
     if target_vacancy_id: # not None
         status_dict["vacancy_description_recieved"] = is_vacancy_description_recieved(record_id=bot_user_id)
         status_dict["sourcing_criterias_recieved"] = is_vacancy_sourcing_criterias_recieved(record_id=bot_user_id)
-        status_dict["resume_records_file_not_empty"] = is_resume_records_file_not_empty(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id)
     else:
         status_dict["vacancy_description_recieved"] = False
         status_dict["sourcing_criterias_recieved"] = False
-        status_dict["resume_records_file_not_empty"] = False
     return status_dict
 
 
@@ -2125,7 +2102,6 @@ async def build_user_status_text(bot_user_id: str, status_dict: dict) -> str:
         "welcome_video_recording": " Приветственное видео.",
         "vacancy_description_recieved": " Описание вакансии.",
         "sourcing_criterias_recieved": " Критерии отбора.",
-        "resume_records_file_not_empty": " Резюме в работе.",
     }
     status_images = {True: "✅", False: "❌"}
     user_status_text = "Статус пользователя:\n"
@@ -2157,7 +2133,6 @@ async def show_chat_menu_command(update: Update, context: ContextTypes.DEFAULT_T
         "welcome_video_recording": "Записать приветственное видео",
         "vacancy_description_recieved": "Запросить описание вакансии",
         "sourcing_criterias_recieved": "Выработать критерии отбора",
-        "resume_records_file_not_empty": "Получить рекомендации",
     }
     answer_options = []
     for key, value_bool in status_dict.items():
@@ -2248,9 +2223,6 @@ async def handle_chat_menu_action(update: Update, context: ContextTypes.DEFAULT_
         await read_vacancy_description_command(update=update, context=context)
     elif action == "sourcing_criterias_recieved":
         await define_sourcing_criterias_command(update=update, context=context)
-    elif action == "resume_records_file_not_empty":
-        bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
-        await recommend_resumes_with_video_command(bot_user_id=bot_user_id, application=context.application)
     else:
         logger.warning(f"Unknown action '{action}' from callback_code '{selected_callback_code}'. Available actions: bot_authorization, privacy_policy_confirmation, privacy_policy, hh_authorization, hh_auth, select_vacancy, record_video, get_recommendations")
         await send_message_to_user(update, context, text=FAIL_TECHNICAL_SUPPORT_TEXT)

@@ -155,7 +155,6 @@ def create_record_for_new_user_in_records(record_id: str) -> None:
         "vacancy_video_path": "",
         "vacancy_description_recieved": "no",
         "vacancy_sourcing_criterias_recieved": "no",
-        "vacancy_negotiation_collection_recieved": "no",
     }
     # Check if bot_user_id is not in manager_users_records keys
     if record_id not in records:
@@ -196,7 +195,8 @@ def create_record_for_new_resume_id_in_resume_records(bot_user_id: str, vacancy_
             "request_to_shoot_resume_video_sent": "no",
             "resume_video_received": "no",
             "resume_video_path": "",
-            "is_resume_accepted_by_manager": "no"
+            "resume_recommended": "no",
+            "resume_accepted": "no"
         }
         resume_records_file_path.write_text(json.dumps(resume_records, ensure_ascii=False, indent=2), encoding="utf-8")
         logger.info(f"{resume_records_file_path} has been successfully created with new resume_record: {resume_record_id_str}")
@@ -435,39 +435,28 @@ def get_target_vacancy_name_from_records(record_id: str) -> Optional[str]:
     return None
 
 
-def get_list_of_passed_resume_ids_with_video(bot_user_id: str, vacancy_id: str) -> list[str]:
+def get_list_of_resume_ids_for_recommendation(bot_user_id: str, vacancy_id: str) -> list[str]:
     # TAGS: [get_data]
-    """Get list of resume IDs with video."""
+    """Get list of resume IDs for recommendation.
+    Criterias:
+    1. Resume is passed
+    2. Resume has video
+    3. Resume is not recommended yet
+    """
     resume_records_file_path = get_resume_records_file_path(bot_user_id=bot_user_id, vacancy_id=vacancy_id)
     with open(resume_records_file_path, "r", encoding="utf-8") as f:
         resume_records = json.load(f)
 
-    list_of_passed_resume_ids_with_video = []
+    recommendation_list = []
     for resume_id, resume_record_data in resume_records.items():
         # Check if resume is passed and not recommended yet without video
         if resume_record_data["resume_sorting_status"] == "passed":
             # Collect resume id for passed resumes WITH video
             if resume_record_data["resume_video_received"] == "yes":
-                list_of_passed_resume_ids_with_video.append(resume_id)
-    logger.debug(f"get_list_of_passed_resume_ids_with_video: List of passed resume IDs with video: {list_of_passed_resume_ids_with_video}")
-    return list_of_passed_resume_ids_with_video
-
-
-def get_list_of_passed_resume_ids_no_video(bot_user_id: str, vacancy_id: str) -> list[str]:
-    # TAGS: [get_data]
-    """Get list of passed resume IDs without video."""
-    resume_records_file_path = get_resume_records_file_path(bot_user_id=bot_user_id, vacancy_id=vacancy_id)
-    with open(resume_records_file_path, "r", encoding="utf-8") as f:
-        resume_records = json.load(f)
-
-    list_of_passed_resume_ids_no_video = []
-    for resume_record_id, resume_record_data in resume_records.items():
-        # Check if resume is passed and not recommended yet without video
-        if resume_record_data["resume_sorting_status"] == "passed":
-            # Collect resume id for passed resumes WITH video
-            if resume_record_data["resume_video_received"] == "no":
-                list_of_passed_resume_ids_no_video.append(resume_record_id)
-    return list_of_passed_resume_ids_no_video
+                if resume_record_data["resume_recommended"] == "no":
+                    recommendation_list.append(resume_id)
+    logger.debug(f"get_list_of_resume_ids_for_recommendation: List of resume IDs for recommendation: {recommendation_list}")
+    return recommendation_list
 
 
 def get_negotiation_id_from_resume_record(bot_user_id: str, vacancy_id: str, resume_record_id: str) -> Optional[str]:
@@ -479,8 +468,9 @@ def get_negotiation_id_from_resume_record(bot_user_id: str, vacancy_id: str, res
     return resume_records[resume_record_id]["negotiation_id"]
 
 
-def get_resume_recommendation_from_resume_records(bot_user_id: str, vacancy_id: str, resume_record_id: str) -> Optional[str]:
-    """Get resume recommendation from resume records. TAGS: [get_data]"""
+def get_resume_recommendation_text_from_resume_records(bot_user_id: str, vacancy_id: str, resume_record_id: str) -> str:
+    # TAGS: [get_data]
+    """Get resume recommendation text from resume records."""
     resume_records_file_path = get_resume_records_file_path(bot_user_id=bot_user_id, vacancy_id=vacancy_id)
     # Read existing data
     with open(resume_records_file_path, "r", encoding="utf-8") as f:
@@ -495,6 +485,9 @@ def get_resume_recommendation_from_resume_records(bot_user_id: str, vacancy_id: 
     final_score = resume_record_id_data["ai_analysis"]["final_score"]
     recommendation = resume_record_id_data["ai_analysis"]["recommendation"]
     attention = resume_record_id_data["ai_analysis"]["requirements_compliance"]["attention"]
+
+    if not first_name or not last_name or not final_score or not recommendation or not attention:
+        raise ValueError(f"Missing required values for recommendation text for 'resume_record_id': {resume_record_id}")
     
     # ----- FORMAT ATTENTION list to present each item on a new line -----
 
@@ -506,16 +499,15 @@ def get_resume_recommendation_from_resume_records(bot_user_id: str, vacancy_id: 
     # ----- FORMAT RECOMMENDATION TEXT and send message -----
 
     recommendation_text = (
+        f"<b>Имя</b>: {first_name} {last_name}\n"
+        f"<b>Общий балл</b>: <b>{final_score}</b> из 10\n"
         f"--------------------\n"
-        f"ID: <code>{resume_record_id}</code>\n"
-        f"Имя: {first_name} {last_name}\n"
+        f"<b>Рекомендация:</b>\n{recommendation}\n"
         f"--------------------\n"
-        f"Общий балл: <b>{final_score}</b> из 10\n"
-        f"Рекомендация: {recommendation}\n"
-        f"--------------------\n"
-        f"<b>На что обратить внимание:</b>\n{attention_text}"
+        f"<b>Обратить внимание:</b>\n{attention_text}"
     )
     return recommendation_text
+
 
 
 def get_path_to_video_from_applicant_from_resume_records(bot_user_id: str, vacancy_id: str, resume_record_id: str) -> Path:
@@ -524,7 +516,10 @@ def get_path_to_video_from_applicant_from_resume_records(bot_user_id: str, vacan
     # Read existing data
     with open(resume_records_file_path, "r", encoding="utf-8") as f:
         resume_records = json.load(f)
-    return resume_records[resume_record_id].get("resume_video_path")
+    video_path_value = resume_records[resume_record_id].get("resume_video_path")
+    if video_path_value is None:
+        raise ValueError(f"'resume_video_path' not found for 'resume_record_id': {resume_record_id}")
+    return Path(video_path_value)
 
 
 def get_reply_from_update_object(update: Update):
@@ -586,16 +581,18 @@ def update_user_records_with_top_level_key(record_id: int | str, key: str, value
 
 def update_resume_record_with_top_level_key(bot_user_id: str, vacancy_id: str, resume_record_id: str, key: str, value: str | int | bool | dict | list) -> None:
     """Update resume record with new resume data. TAGS: [update_data]"""
-    resume_records_path = get_resume_records_file_path(bot_user_id=bot_user_id, vacancy_id=vacancy_id)
-    with open(resume_records_path, "r", encoding="utf-8") as f:
-        resume_records = json.load(f)
-    if resume_record_id in resume_records:
-        resume_records[resume_record_id][key] = value
-        resume_records_path.write_text(json.dumps(resume_records, ensure_ascii=False, indent=2), encoding="utf-8")
-        logger.info(f"{resume_records_path} has been successfully updated with {key}={value}")
-    else:
-        logger.debug(f"Skipping update: {resume_record_id} does not exist in the file {resume_records_path}")
-
+    try:
+        resume_records_path = get_resume_records_file_path(bot_user_id=bot_user_id, vacancy_id=vacancy_id)
+        with open(resume_records_path, "r", encoding="utf-8") as f:
+            resume_records = json.load(f)
+        if resume_record_id in resume_records:
+            resume_records[resume_record_id][key] = value
+            resume_records_path.write_text(json.dumps(resume_records, ensure_ascii=False, indent=2), encoding="utf-8")
+            logger.info(f"{resume_records_path} has been successfully updated with {key}={value}")
+        else:
+            raise ValueError(f"Resume record {resume_record_id} does not exist in the file {resume_records_path}")
+    except Exception as e:
+        raise ValueError(f"Error updating resume record with top level key: {e}")
 
 # ****** METHODS with TAGS: [persistent_keyboard] ******
 

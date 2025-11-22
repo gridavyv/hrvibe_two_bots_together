@@ -121,7 +121,6 @@ def is_vacancy_sourcing_criterias_recieved(record_id: str) -> bool:
     return False
 
 
-
 def is_agree_to_record_welcome_video(record_id: str) -> bool:
     # TAGS: [status_validation]
     """Check if welcome video is agreed to record."""
@@ -236,3 +235,15 @@ def is_vacany_data_enough_for_resume_analysis(user_id: str) -> bool:
         is_vacancy_sourcing_criterias_recieved(record_id=user_id)
     )
 
+
+def is_resume_accepted(bot_user_id: str, vacancy_id: str, resume_id: str) -> bool:
+    # TAGS: [status_validation]
+    """Check if resume is accepted."""
+    resume_records_file_path = get_resume_records_file_path(bot_user_id=bot_user_id, vacancy_id=vacancy_id)
+    with open(resume_records_file_path, "r", encoding="utf-8") as f:
+        resume_records = json.load(f)
+    if resume_id in resume_records:
+        return resume_records[resume_id]["resume_accepted"] == "yes"
+    else:
+        logger.debug(f"'resume_id': {resume_id} is not found in {resume_records_file_path}")
+        return False
