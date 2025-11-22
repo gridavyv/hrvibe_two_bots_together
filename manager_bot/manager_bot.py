@@ -48,6 +48,7 @@ from services.status_validation_service import (
     is_manager_privacy_policy_confirmed,
     is_applicant_video_recorded,
     is_resume_accepted,
+    is_resume_id_exists_in_resume_records,
 )
 
 
@@ -192,14 +193,15 @@ async def admin_get_users_command(update: Update, context: ContextTypes.DEFAULT_
         if context.application:
             await send_message_to_admin(
                 application=context.application,
-                text=f"⚠️ Error executing admin_get_list_of_users command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+                text=f"⚠️ Error admin_get_users_command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
             )
 
 
-async def admin_update_negotiations_for_all_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def admin_anazlyze_sourcing_criterais_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     #TAGS: [admin]
     """
-    Admin command to update negotiations for all users.
+    Admin command to analyze sourcing criterias for all users or a specific user.
+    Usage: /admin_analyze_sourcing_criterais [user_id]
     Only accessible to users whose ID is in the ADMIN_IDS whitelist.
     """
 
@@ -207,7 +209,7 @@ async def admin_update_negotiations_for_all_command(update: Update, context: Con
         # ----- IDENTIFY USER and pull required data from records -----
 
         bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
-        logger.info(f"admin_update_negotiations_for_all_command: started. User_id: {bot_user_id}")
+        logger.info(f"admin_update_negotiations_command: started. User_id: {bot_user_id}")
 
         #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
 
@@ -217,30 +219,138 @@ async def admin_update_negotiations_for_all_command(update: Update, context: Con
             logger.error(f"Unauthorized for {bot_user_id}")
             return
 
-        # ----- UPDATE NEGOTIATIONS for all users -----
+        # ----- PARSE COMMAND ARGUMENTS -----
 
-        user_ids = get_list_of_users_from_records()
-        negotiations_updated = 0
-        for user_id in user_ids:
-            if is_vacany_data_enough_for_resume_analysis(user_id=user_id):
-                await source_negotiations_triggered_by_admin_command(bot_user_id=user_id)
-                negotiations_updated += 1
+        target_user_id = None
+        if context.args and len(context.args) == 1:
+            target_user_id = context.args[0]
+            if target_user_id:
+                if is_user_in_records(record_id=target_user_id):
+                    if is_vacany_data_enough_for_resume_analysis(user_id=target_user_id):
+                        await define_sourcing_criterias_triggered_by_admin_command(bot_user_id=target_user_id)
+                        await send_message_to_user(update, context, text="Sourcing criterias analyzed for user {target_user_id}.")
+                    else:
+                        raise ValueError(f"User {target_user_id} does not have enough vacancy data for resume analysis.")
+                else:
+                    raise ValueError(f"User {target_user_id} not found in records.")
             else:
-                logger.debug(f"admin_update_negotiations_for_all_command: User {user_id} does not have enough vacancydata for resume analysis. Negotiations update skipped.")
-
-        await send_message_to_user(update, context, text=f"Total users: {len(user_ids)}. Negotiations collections updated for: {negotiations_updated} users.")
+                raise ValueError(f"Invalid command arguments. Usage: /admin_update_negotiations <user_id>")
+        else:
+            raise ValueError(f"Invalid number of arguments. Usage: /admin_update_negotiations <user_id>")
     
     except Exception as e:
-        logger.error(f"admin_update_negotiations_for_all_command: Failed to execute command: {e}", exc_info=True)
+        logger.error(f"admin_update_negotiations_command: Failed to execute command: {e}", exc_info=True)
         # Send notification to admin about the error
         if context.application:
             await send_message_to_admin(
                 application=context.application,
-                text=f"⚠️ Error admin_update_negotiations_for_all_command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+                text=f"⚠️ Error admin_update_negotiations_command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
             )
 
 
-async def admin_get_fresh_resumes_for_all_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def admin_send_sourcing_criterais_to_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    #TAGS: [admin]
+    """
+    Admin command to send sourcing criterias to a specific user.
+    Usage: /admin_send_sourcing_criterais_to_user [user_id]
+    Only accessible to users whose ID is in the ADMIN_IDS whitelist.
+    """
+
+    try:
+        # ----- IDENTIFY USER and pull required data from records -----
+
+        bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        logger.info(f"admin_update_negotiations_command: started. User_id: {bot_user_id}")
+
+        #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
+
+        admin_id = os.getenv("ADMIN_ID", "")
+        if not admin_id or bot_user_id != admin_id:
+            await send_message_to_user(update, context, text=FAIL_TO_IDENTIFY_USER_AS_ADMIN_TEXT)
+            logger.error(f"Unauthorized for {bot_user_id}")
+            return
+
+        # ----- PARSE COMMAND ARGUMENTS -----
+
+        target_user_id = None
+        if context.args and len(context.args) == 1:
+            target_user_id = context.args[0]
+            if target_user_id:
+                if is_user_in_records(record_id=target_user_id):
+                    if is_vacany_data_enough_for_resume_analysis(user_id=target_user_id):
+                        await send_to_user_sourcing_criterias_triggered_by_admin_command(bot_user_id=target_user_id, application=context.application)
+                        await send_message_to_user(update, context, text="Sourcing criterias analyzed for user {target_user_id}.")
+                    else:
+                        raise ValueError(f"User {target_user_id} does not have enough vacancy data for resume analysis.")
+                else:
+                    raise ValueError(f"User {target_user_id} not found in records.")
+            else:
+                raise ValueError(f"Invalid command arguments. Usage: /admin_update_negotiations <user_id>")
+        else:
+            raise ValueError(f"Invalid number of arguments. Usage: /admin_update_negotiations <user_id>")
+    
+    except Exception as e:
+        logger.error(f"admin_send_sourcing_criterais_to_user_command: Failed: {e}", exc_info=True)
+        # Send notification to admin about the error
+        if context.application:
+            await send_message_to_admin(
+                application=context.application,
+                text=f"⚠️ Error admin_send_sourcing_criterais_to_user_command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+            )
+
+
+async def admin_update_negotiations_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    #TAGS: [admin]
+    """
+    Admin command to update negotiations for all users or a specific user.
+    Usage: /admin_update_neg_coll_for_all [user_id]
+    Only accessible to users whose ID is in the ADMIN_IDS whitelist.
+    """
+
+    try:
+        # ----- IDENTIFY USER and pull required data from records -----
+
+        bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        logger.info(f"admin_update_negotiations_command: started. User_id: {bot_user_id}")
+
+        #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
+
+        admin_id = os.getenv("ADMIN_ID", "")
+        if not admin_id or bot_user_id != admin_id:
+            await send_message_to_user(update, context, text=FAIL_TO_IDENTIFY_USER_AS_ADMIN_TEXT)
+            logger.error(f"Unauthorized for {bot_user_id}")
+            return
+
+        # ----- PARSE COMMAND ARGUMENTS -----
+
+        target_user_id = None
+        if context.args and len(context.args) == 1:
+            target_user_id = context.args[0]
+            if target_user_id:
+                if is_user_in_records(record_id=target_user_id):
+                    if is_vacany_data_enough_for_resume_analysis(user_id=target_user_id):
+                        await source_negotiations_triggered_by_admin_command(bot_user_id=target_user_id) # ValueError raised if fails
+                        await send_message_to_user(update, context, text="Negotiations collection updated for user {target_user_id}.")
+                    else:
+                        raise ValueError(f"User {target_user_id} does not have enough vacancy data for resume analysis.")
+                else:
+                    raise ValueError(f"User {target_user_id} not found in records.")
+            else:
+                raise ValueError(f"Invalid command arguments. Usage: /admin_update_negotiations <user_id>")
+        else:
+            raise ValueError(f"Invalid number of arguments. Usage: /admin_update_negotiations <user_id>")
+    
+    except Exception as e:
+        logger.error(f"admin_update_negotiations_command: Failed to execute command: {e}", exc_info=True)
+        # Send notification to admin about the error
+        if context.application:
+            await send_message_to_admin(
+                application=context.application,
+                text=f"⚠️ Error admin_update_negotiations_command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+            )
+
+
+async def admin_get_fresh_resumes_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     #TAGS: [admin]
     """
     Admin command to get fresh resumes for all users.
@@ -251,7 +361,7 @@ async def admin_get_fresh_resumes_for_all_command(update: Update, context: Conte
         # ----- IDENTIFY USER and pull required data from records -----
 
         bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
-        logger.info(f"admin_get_fresh_resumes_for_all_command: started. User_id: {bot_user_id}")
+        logger.info(f"admin_get_fresh_resumes_command: started. User_id: {bot_user_id}")
         
         #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
 
@@ -261,30 +371,36 @@ async def admin_get_fresh_resumes_for_all_command(update: Update, context: Conte
             logger.error(f"Unauthorized for {bot_user_id}")
             return
 
-        # ----- SOURCE RESUMES for all users -----
+        # ----- PARSE COMMAND ARGUMENTS -----
 
-        user_ids = get_list_of_users_from_records()
-        resumes_sourced = 0
-        for user_id in user_ids:
-            if is_vacany_data_enough_for_resume_analysis(user_id=user_id):
-                await source_resumes_triggered_by_admin_command(bot_user_id=user_id)
-                resumes_sourced += 1
+        target_user_id = None
+        if context.args and len(context.args) == 1:
+            target_user_id = context.args[0]
+            if target_user_id:
+                if is_user_in_records(record_id=target_user_id):
+                    if is_vacany_data_enough_for_resume_analysis(user_id=target_user_id):
+                        await source_resumes_triggered_by_admin_command(bot_user_id=target_user_id)
+                        await send_message_to_user(update, context, text="Negotiations collection updated for user {target_user_id}.")
+                    else:
+                        raise ValueError(f"User {target_user_id} does not have enough vacancy data for resume analysis.")
+                else:
+                    raise ValueError(f"User {target_user_id} not found in records.")
             else:
-                logger.debug(f"admin_get_fresh_resumes_for_all_command: User {user_id} does not have enough vacancy data for resume analysis. Resume sourcing skipped.")
-                
-        await send_message_to_user(update, context, text=f"Total users: {len(user_ids)}. Fresh resumes sourced for: {resumes_sourced} users.")
-    
+                raise ValueError(f"Invalid command arguments. Usage: /admin_update_negotiations <user_id>")
+        else:
+            raise ValueError(f"Invalid number of arguments. Usage: /admin_update_negotiations <user_id>")
+
     except Exception as e:
-        logger.error(f"admin_get_fresh_resumes_for_all_command: Failed to execute command: {e}", exc_info=True)
+        logger.error(f"admin_get_fresh_resumes_command: Failed to execute command: {e}", exc_info=True)
         # Send notification to admin about the error
         if context.application:
             await send_message_to_admin(
                 application=context.application,
-                text=f"⚠️ Error admin_get_fresh_resumes_for_all_command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+                text=f"⚠️ Error admin_get_fresh_resumes_command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
             )
 
 
-async def admin_anazlyze_resumes_for_all_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def admin_anazlyze_resumes_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     #TAGS: [admin]
     """
     Admin command to analyze fresh resumes for all users.
@@ -295,7 +411,7 @@ async def admin_anazlyze_resumes_for_all_command(update: Update, context: Contex
         # ----- IDENTIFY USER and pull required data from records -----
 
         bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
-        logger.info(f"admin_anazlyze_resumes_for_all_command: started. User_id: {bot_user_id}")
+        logger.info(f"admin_anazlyze_resumes_command: started. User_id: {bot_user_id}")
         
         #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
 
@@ -305,26 +421,32 @@ async def admin_anazlyze_resumes_for_all_command(update: Update, context: Contex
             logger.error(f"Unauthorized for {bot_user_id}")
             return
 
-        # ----- CREATE TASKS for resume ananlysis for all users -----
+        # ----- PARSE COMMAND ARGUMENTS -----
 
-        user_ids = get_list_of_users_from_records()
-        analyze_tasks_created = 0
-        for user_id in user_ids:
-            if is_vacany_data_enough_for_resume_analysis(user_id=user_id):
-                await analyze_resume_triggered_by_admin_command(bot_user_id=user_id)
-                analyze_tasks_created += 1
+        target_user_id = None
+        if context.args and len(context.args) == 1:
+            target_user_id = context.args[0]
+            if target_user_id:
+                if is_user_in_records(record_id=target_user_id):
+                    if is_vacany_data_enough_for_resume_analysis(user_id=target_user_id):
+                        await analyze_resume_triggered_by_admin_command(bot_user_id=target_user_id)
+                        await send_message_to_user(update, context, text="Negotiations collection updated for user {target_user_id}.")
+                    else:
+                        raise ValueError(f"User {target_user_id} does not have enough vacancy data for resume analysis.")
+                else:
+                    raise ValueError(f"User {target_user_id} not found in records.")
             else:
-                logger.debug(f"admin_anazlyze_resumes_for_all_command: User {user_id} does not have enough vacancy data for resume analysis. Analyze task skipped.")
-                
-        await send_message_to_user(update, context, text=f"Total users: {len(user_ids)}. Analyze tasks created for: {analyze_tasks_created} users.")
+                raise ValueError(f"Invalid command arguments. Usage: /admin_update_negotiations <user_id>")
+        else:
+            raise ValueError(f"Invalid number of arguments. Usage: /admin_update_negotiations <user_id>")
     
     except Exception as e:
-        logger.error(f"admin_anazlyze_resumes_for_all_command: Failed to execute command: {e}", exc_info=True)
+        logger.error(f"admin_anazlyze_resumes_command: Failed to execute command: {e}", exc_info=True)
         # Send notification to admin about the error
         if context.application:
             await send_message_to_admin(
                 application=context.application,
-                text=f"⚠️ Error admin_anazlyze_resumes_for_all_command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+                text=f"⚠️ Error admin_anazlyze_resumes_command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
             )
 
 
@@ -621,8 +743,7 @@ async def setup_new_user_command(update: Update, context: ContextTypes.DEFAULT_T
     # TAGS: [user_related]
     """Setup new user in system.
     Called from: 'start_command'.
-    Triggers: nothing.
-    Sends notification to admin if fails"""
+    Triggers: nothing."""
 
     try:
         # ------ COLLECT NEW USER ID and CREATE record and user directory if needed ------
@@ -630,17 +751,32 @@ async def setup_new_user_command(update: Update, context: ContextTypes.DEFAULT_T
         bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
         logger.info(f"setup_new_user_command started. user_id: {bot_user_id}")
 
+        if bot_user_id is None:
+            raise ValueError(f"setup_new_user_command: bot_user_id is None")
+
+        # ----- CHECK IF USER is in records and CREATE record and user directory if needed -----
+
         if not is_user_in_records(record_id=bot_user_id):
             create_record_for_new_user_in_records(record_id=bot_user_id)
             create_user_directory(bot_user_id=bot_user_id)
 
-            # ------ ENRICH RECORDS with NEW USER DATA ------
+        # ------ ENRICH RECORDS with NEW USER DATA ------
 
         tg_user_attributes = ["username", "first_name", "last_name"]
         for item in tg_user_attributes:
             tg_user_attribute_value = get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute=item)
             update_user_records_with_top_level_key(record_id=bot_user_id, key=item, value=tg_user_attribute_value)
-        logger.debug(f"{bot_user_id} in user records is updated with telegram user attributes.")
+            # If cannot update user records, ValueError is raised from method: update_user_records_with_top_level_key()
+        logger.debug(f"setup_new_user_command: {bot_user_id} in user records is updated with telegram user attributes.")
+        
+        # ----- SEND NEW USER SETUP NOTIFICATION to admin  -----
+
+        # Send notification to admin about the error
+        if context.application:
+            await send_message_to_admin(
+                application=context.application,
+                text=f"✅ New user {bot_user_id} has been successfully setup."
+            )
     
     except Exception as e:
         logger.error(f"Failed to setup new user: {e}", exc_info=True)
@@ -649,7 +785,7 @@ async def setup_new_user_command(update: Update, context: ContextTypes.DEFAULT_T
         if context.application:
             await send_message_to_admin(
                 application=context.application,
-                text=f"⚠️ Error setting up new user: {e}\nUser ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+                text=f"⚠️ Error setup_new_user_command: {e}\nUser ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
             )
 
 
@@ -659,25 +795,41 @@ async def ask_privacy_policy_confirmation_command(update: Update, context: Conte
     Called from: 'start_command'.
     Triggers: nothing."""
 
-    # ----- IDENTIFY USER and pull required data from records -----
+    try:
+        # ----- IDENTIFY USER and pull required data from records -----
 
-    bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
-    logger.info(f"ask_privacy_policy_confirmation_command started. user_id: {bot_user_id}")
+        bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        logger.info(f"ask_privacy_policy_confirmation_command started. user_id: {bot_user_id}")
 
-    # ----- CHECK IF PRIVACY POLICY is already confirmed and STOP if it is -----
+        if not is_user_in_records(record_id=bot_user_id):
+            await send_message_to_user(update, context, text=FAIL_TO_FIND_USER_IN_RECORDS_TEXT)
+            raise ValueError(f"ask_privacy_policy_confirmation_command: user {bot_user_id} not found in records")
 
-    if is_manager_privacy_policy_confirmed(bot_user_id=bot_user_id):
-        await send_message_to_user(update, context, text=SUCCESS_TO_GET_PRIVACY_POLICY_CONFIRMATION_TEXT)
-        return
+        # ----- CHECK IF PRIVACY POLICY is already confirmed and STOP if it is -----
 
-    # Build options (which will be tuples of (button_text, callback_data))
-    answer_options = [
-        ("Ознакомлен, даю согласие на обработку.", "privacy_policy_confirmation:yes"),
-        ("Не даю согласие на обрабоку.", "privacy_policy_confirmation:no"),
-    ]
-    # Store button_text and callback_data options in context to use it later for button _text identification as this is not stored in "update.callback_query" object
-    context.user_data["privacy_policy_confirmation_answer_options"] = answer_options
-    await ask_question_with_options(update, context, question_text=PRIVACY_POLICY_CONFIRMATION_TEXT, answer_options=answer_options)
+        if is_manager_privacy_policy_confirmed(bot_user_id=bot_user_id):
+            await send_message_to_user(update, context, text=SUCCESS_TO_GET_PRIVACY_POLICY_CONFIRMATION_TEXT)
+            return
+
+        # Build options (which will be tuples of (button_text, callback_data))
+        answer_options = [
+            ("Ознакомлен, даю согласие на обработку.", "privacy_policy_confirmation:yes"),
+            ("Не даю согласие на обрабоку.", "privacy_policy_confirmation:no"),
+        ]
+        # Store button_text and callback_data options in context to use it later for button _text identification as this is not stored in "update.callback_query" object
+        context.user_data["privacy_policy_confirmation_answer_options"] = answer_options
+        await ask_question_with_options(update, context, question_text=PRIVACY_POLICY_CONFIRMATION_TEXT, answer_options=answer_options)
+        logger.info(f"ask_privacy_policy_confirmation_command: privacy policy confirmation question with options asked")
+
+    except Exception as e:
+        logger.error(f"Failed to ask privacy policy confirmation: {e}", exc_info=True)
+        await send_message_to_user(update, context, text=FAIL_TECHNICAL_SUPPORT_TEXT)
+        # Send notification to admin about the error
+        if context.application:
+            await send_message_to_admin(
+                application=context.application,
+                text=f"⚠️ Error ask_privacy_policy_confirmation_command: {e}\nUser ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+            )
 
 
 async def handle_answer_policy_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -762,74 +914,87 @@ async def hh_authorization_command(update: Update, context: ContextTypes.DEFAULT
         - If user didn't authorize, sends error text.
     """
     
-    # ----- IDENTIFY USER and pull required data from records -----
+    try:
+        # ----- IDENTIFY USER and pull required data from records -----
 
-    bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
-    logger.info(f"hh_authorization_command triggered by user_id: {bot_user_id}")
-    
-    # ----- CHECK IF NO Privacy policy consent or AUTHORIZAED already and STOP if it is -----
-    if not is_manager_privacy_policy_confirmed(bot_user_id=bot_user_id):
-        await send_message_to_user(update, context, text=MISSING_PRIVACY_POLICY_CONFIRMATION_TEXT)
-        return
-
-    if is_user_authorized(record_id=bot_user_id):
-        await send_message_to_user(update, context, text=SUCCESS_TO_HH_AUTHORIZATION_TEXT)
-        return
-
-    # ------ HH.ru AUTHENTICATION PROCESS ------
-    
-    # Check if the authentication endpoint is healthy
-    if not callback_endpoint_healthcheck():
-        await send_message_to_user(update, context, text="Сервер авторизации недоступен. Тех. поддержка свяжется с вами в ближайшее время.")
-        await send_message_to_admin(application=context.application, text=f"⚠️ Error: Сервер авторизации недоступен. Пользователь: {bot_user_id} не может авторизаоваться.")
-        return
-
-    # ------ SEND USER AUTH link in HTML format ------
-    
-    # Build OAuth link and send it to the user
-    auth_link = create_oauth_link(state=bot_user_id)
-    # Format oauth link text to keep https links in html format
-    formatted_oauth_link_text = format_oauth_link_text(oauth_link=auth_link)
-    authorization_request_text = AUTH_REQ_TEXT + formatted_oauth_link_text
-    await send_message_to_user(update, context, text=authorization_request_text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
-    await asyncio.sleep(1) 
-
-    # ------ WAIT FOR USER AUTHORIZATION ------
-
-    await send_message_to_user(update, context, text="⏳ Ожидаю авторизацию...")
-    # Wait for user to authorize - retry 5 times over ~60 seconds
-    max_attempts = 30
-    retry_delay = 6  # seconds between retries
-    endpoint_response = None
-    # Retry to get access token by state 5 times over ~60 seconds
-    for attempt in range(1, max_attempts + 1):
-        await asyncio.sleep(retry_delay)
-        endpoint_response = get_token_by_state(state=bot_user_id, bot_shared_secret=BOT_SHARED_SECRET)
+        bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        logger.info(f"hh_authorization_command started. user_id: {bot_user_id}")
         
-        if endpoint_response is not None:
-            if endpoint_response is not CALLBACK_ENDPOINT_RESPONSE_WHEN_RECORDS_NOT_READY:
-                logger.debug(f"Endpoint response: {endpoint_response}")
-                access_token = get_access_token_from_callback_endpoint_resp(endpoint_response=endpoint_response)
-                expires_at = get_expires_at_from_callback_endpoint_resp(endpoint_response=endpoint_response)
-                if access_token is not None and expires_at is not None:
-                    update_user_records_with_top_level_key(record_id=bot_user_id, key="access_token_recieved", value="yes")
-                    update_user_records_with_top_level_key(record_id=bot_user_id, key="access_token", value=access_token)
-                    update_user_records_with_top_level_key(record_id=bot_user_id, key="access_token_expires_at", value=expires_at)
-                logger.info(f"Authorization successful on attempt {attempt}. Access token '{access_token}' and expires_at '{expires_at}' updated in records.")
-                await send_message_to_user(update, context, text=AUTH_SUCCESS_TEXT)
+        # ----- CHECK IF NO Privacy policy consent or AUTHORIZAED already and STOP if it is -----
+        if not is_manager_privacy_policy_confirmed(bot_user_id=bot_user_id):
+            await send_message_to_user(update, context, text=MISSING_PRIVACY_POLICY_CONFIRMATION_TEXT)
+            return
 
-    # ----- PULL USER DATA from HH and enrich records with it -----
+        if is_user_authorized(record_id=bot_user_id):
+            await send_message_to_user(update, context, text=SUCCESS_TO_HH_AUTHORIZATION_TEXT)
+            return
 
-                await pull_user_data_from_hh_command(update=update, context=context)
-                
-                #Stop the loop after successful authorization
-                break
-        else:
-            logger.debug(f"Attempt {attempt}/{max_attempts}: User hasn't authorized yet. Retrying...")
-    # If still None after all attempts, user didn't authorize
-    if endpoint_response is None:
-        await send_message_to_user(update, context, text=AUTH_FAILED_TEXT)
-        return
+        # ------ HH.ru AUTHENTICATION PROCESS ------
+        
+        # Check if the authentication endpoint is healthy
+        if not callback_endpoint_healthcheck():
+            raise ValueError(f"hh_authorization_command: Server authorization is not available. User {bot_user_id} cannot authorize.")
+
+        # ------ SEND USER AUTH link in HTML format ------
+        
+        # Build OAuth link and send it to the user
+        auth_link = create_oauth_link(state=bot_user_id)
+        # If cannot create oauth link, ValueError is raised from method: create_oauth_link()
+
+        # Format oauth link text to keep https links in html format
+        formatted_oauth_link_text = format_oauth_link_text(oauth_link=auth_link)
+        authorization_request_text = AUTH_REQ_TEXT + formatted_oauth_link_text
+        await send_message_to_user(update, context, text=authorization_request_text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+        await asyncio.sleep(1) 
+
+        # ------ WAIT FOR USER AUTHORIZATION ------
+
+        await send_message_to_user(update, context, text="⏳ Ожидаю авторизацию...")
+        # Wait for user to authorize - retry 5 times over ~60 seconds
+        max_attempts = 30
+        retry_delay = 6  # seconds between retries
+        endpoint_response = None
+        # Retry to get access token by state 5 times over ~60 seconds
+        for attempt in range(1, max_attempts + 1):
+            await asyncio.sleep(retry_delay)
+            endpoint_response = get_token_by_state(state=bot_user_id, bot_shared_secret=BOT_SHARED_SECRET)
+            
+            if endpoint_response is not None:
+                if endpoint_response is not CALLBACK_ENDPOINT_RESPONSE_WHEN_RECORDS_NOT_READY:
+                    logger.debug(f"Endpoint response: {endpoint_response}")
+                    access_token = get_access_token_from_callback_endpoint_resp(endpoint_response=endpoint_response)
+                    expires_at = get_expires_at_from_callback_endpoint_resp(endpoint_response=endpoint_response)
+                    if access_token is not None and expires_at is not None:
+                        update_user_records_with_top_level_key(record_id=bot_user_id, key="access_token_recieved", value="yes")
+                        update_user_records_with_top_level_key(record_id=bot_user_id, key="access_token", value=access_token)
+                        update_user_records_with_top_level_key(record_id=bot_user_id, key="access_token_expires_at", value=expires_at)
+                        # If cannot update user records, ValueError is raised from method: update_user_records_with_top_level_key()
+
+                    logger.info(f"Authorization successful on attempt {attempt}. Access token '{access_token}' and expires_at '{expires_at}' updated in records.")
+                    await send_message_to_user(update, context, text=AUTH_SUCCESS_TEXT)
+
+        # ----- PULL USER DATA from HH and enrich records with it -----
+
+                    await pull_user_data_from_hh_command(update=update, context=context)
+                    
+                    #Stop the loop after successful authorization
+                    break
+            else:
+                logger.debug(f"Attempt {attempt}/{max_attempts}: User hasn't authorized yet. Retrying...")
+        # If still None after all attempts, user didn't authorize
+        if endpoint_response is None:
+            await send_message_to_user(update, context, text=AUTH_FAILED_TEXT)
+            return
+    
+    except Exception as e:
+        logger.error(f"hh_authorization_command: Failed to execute: {e}", exc_info=True)
+        await send_message_to_user(update, context, text=FAIL_TECHNICAL_SUPPORT_TEXT)
+        # Send notification to admin about the error
+        if context.application:
+            await send_message_to_admin(
+                application=context.application,
+                text=f"⚠️ Error hh_authorization_command: {e}\nUser ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+            )
 
 
 async def pull_user_data_from_hh_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -860,7 +1025,7 @@ async def pull_user_data_from_hh_command(update: Update, context: ContextTypes.D
         # Clean user info received from HH.ru API
         cleaned_hh_user_info = clean_user_info_received_from_hh(user_info=hh_user_info)
         # Update user info from HH.ru API in records
-        update_user_records_with_top_level_key(record_id=bot_user_id, key="data_from_hh", value=cleaned_hh_user_info)
+        update_user_records_with_top_level_key(record_id=bot_user_id, key="data_from_hh", value=cleaned_hh_user_info) # ValueError raised if fails
 
         # ----- SELECT VACANCY -----
 
@@ -872,7 +1037,7 @@ async def pull_user_data_from_hh_command(update: Update, context: ContextTypes.D
         if context.application:
             await send_message_to_admin(
                 application=context.application,
-                text=f"⚠️ Error pulling user data from HH: {e}\nUser ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+                text=f"⚠️ Error pull_user_data_from_hh_command: {e}\nUser ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
             )
 
 
@@ -1203,7 +1368,7 @@ async def select_vacancy_command(update: Update, context: ContextTypes.DEFAULT_T
         if context.application:
             await send_message_to_admin(
                 application=context.application,
-                text=f"⚠️ Error selecting vacancy: {e}\nUser ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+                text=f"⚠️ Error select_vacancy_command: {e}\nUser ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
             )
 
 
@@ -1273,9 +1438,10 @@ async def handle_answer_select_vacancy(update: Update, context: ContextTypes.DEF
             vacancy_name_value = selected_option[0]
             vacancy_id_value = selected_option[1]
             # Update user records with selected vacancy data
-            update_user_records_with_top_level_key(record_id=bot_user_id, key="vacancy_selected", value="yes")
-            update_user_records_with_top_level_key(record_id=bot_user_id, key="vacancy_name", value=vacancy_name_value)
-            update_user_records_with_top_level_key(record_id=bot_user_id, key="vacancy_id", value=vacancy_id_value)
+            update_user_records_with_top_level_key(record_id=bot_user_id, key="vacancy_selected", value="yes") # ValueError raised if fails
+            update_user_records_with_top_level_key(record_id=bot_user_id, key="vacancy_name", value=vacancy_name_value) # ValueError raised if fails
+            update_user_records_with_top_level_key(record_id=bot_user_id, key="vacancy_id", value=vacancy_id_value) # ValueError raised if fails
+            
             # Inform user that selected vacancy is being processed
             if selected_option:
                 vacancy_name, vacancy_id = selected_option
@@ -1286,7 +1452,6 @@ async def handle_answer_select_vacancy(update: Update, context: ContextTypes.DEF
 
         await ask_to_record_video_command(update=update, context=context)
     
-
     except Exception as e:
         logger.error(f"Failed to handle answer select vacancy: {e}", exc_info=True)
         await send_message_to_user(update, context, text=FAIL_TECHNICAL_SUPPORT_TEXT)
@@ -1302,7 +1467,7 @@ async def read_vacancy_description_command(update: Update, context: ContextTypes
     # TAGS: [vacancy_related]
     """Read vacancy description and save it. 
     Called from: 'download_incoming_video_locally' from file "services.video_service.py".
-    Triggers: 'define_sourcing_criterias_command'.
+    Triggers: nothing.
     Sends notification to admin if fails"""
     
     # ----- IDENTIFY USER and pull required data from records -----
@@ -1342,16 +1507,12 @@ async def read_vacancy_description_command(update: Update, context: ContextTypes
             logger.error(f"Failed to get vacancy description from HH: {target_vacancy_name}")
             return
         
-        await send_message_to_user(update, context, text=f"Читаю описание вакансии '{target_vacancy_name}'.")
+        await send_message_to_user(update, context, text=INFO_ABOUT_ANALYZING_VACANCY_TEXT)
         
         # ----- SAVE VACANCY DESCRIPTION to file and update records -----
 
         create_json_file_with_dictionary_content(file_path=vacancy_description_file_path, content_to_write=vacancy_description)
         update_user_records_with_top_level_key(record_id=bot_user_id, key="vacancy_description_recieved", value="yes")
-        
-        # ----- TRIGGER DEFINE SOURCING CRITERIAS COMMAND -----
-
-        await define_sourcing_criterias_command(update=update, context=context)
     
     except Exception as e:
         logger.error(f"Failed to read vacancy description: {e}", exc_info=True)
@@ -1360,11 +1521,16 @@ async def read_vacancy_description_command(update: Update, context: ContextTypes
         if context.application:
             await send_message_to_admin(
                 application=context.application,
-                text=f"⚠️ Error reading vacancy description: {e}\nUser ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+                text=f"⚠️ Error read_vacancy_description_command: {e}\nUser ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
             )
 
 
-async def define_sourcing_criterias_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+########################################################################################
+# ------------ COMMANDS EXECUTED on ADMIN request ------------
+########################################################################################
+
+
+async def define_sourcing_criterias_triggered_by_admin_command(bot_user_id: str) -> None:
     # TAGS: [vacancy_related]
     """Prepare everything for vacancy description analysis and 
     create TaksQueue job to get sourcing criteria from AI and save it to file.
@@ -1372,36 +1538,29 @@ async def define_sourcing_criterias_command(update: Update, context: ContextType
     Triggers: nothing.
     """
 
-    # ----- IDENTIFY USER and pull required data from records -----
-
-    bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
-    logger.info(f"define_sourcing_criterias_command started. user_id: {bot_user_id}")
-    target_vacancy_id = get_target_vacancy_id_from_records(record_id=bot_user_id)
-
-    # ----- VALIDATE VACANCY IS SELECTED and has description and sourcing criterias exist -----
-
-    validations = [
-        (is_vacancy_selected, MISSING_VACANCY_SELECTION_TEXT),
-        (is_vacancy_description_recieved, MISSING_VACANCY_DESCRIPTION_TEXT),
-    ]
-    
-    for check_func, error_text in validations:
-        if not check_func(record_id=bot_user_id):
-            logger.error(f"Validation failed: {error_text}")
-            await send_message_to_user(update, context, text=error_text)
-            return
-
     try:
+
+        logger.info(f"define_sourcing_criterias_triggered_by_admin_command: started. user_id: {bot_user_id}")
+
+        # ----- VALIDATE VACANCY IS SELECTED and has description and sourcing criterias exist -----
+
+        validations = [
+            (is_vacancy_selected, MISSING_VACANCY_SELECTION_TEXT),
+            (is_vacancy_description_recieved, MISSING_VACANCY_DESCRIPTION_TEXT),
+        ]
+        
+        for check_func, error_text in validations:
+            if not check_func(record_id=bot_user_id):
+                raise ValueError(f"Vacancy data validation failed: {error_text}")
+
         # ----- IDENTIFY USER and pull required data from records -----
 
-        bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
         target_vacancy_id = get_target_vacancy_id_from_records(record_id=bot_user_id)
 
         # ----- CHECK IF SOURCING CRITERIA is already derived and STOP if it is -----
 
         if is_sourcing_criterias_file_exists(record_id=bot_user_id, vacancy_id=target_vacancy_id):
-            await send_message_to_user(update, context, text=SUCCESS_TO_GET_SOURCING_CRITERIAS_TEXT)
-            return
+            raise ValueError(f"Sourcing criterias already derived for user {bot_user_id} and vacancy {target_vacancy_id}")
 
         # ----- DO AI ANALYSIS of the vacancy description  -----
 
@@ -1410,14 +1569,11 @@ async def define_sourcing_criterias_command(update: Update, context: ContextType
         vacancy_description_file_path = vacancy_data_dir / "vacancy_description.json"
         prompt_file_path = Path(PROMPT_DIR) / "for_vacancy.txt"
 
-        await send_message_to_user(update, context, text="Анализирую вакансию. Это может занять некоторое время. Я нашипу в чат когда будет готово.")
-
         # Load inputs for AI analysis
         with open(vacancy_description_file_path, "r", encoding="utf-8") as f:
             vacancy_description = json.load(f)
         with open(prompt_file_path, "r", encoding="utf-8") as f:
             prompt_text = f.read()
-
 
         # Add AI analysis task to queue
         await ai_task_queue.put(
@@ -1425,27 +1581,18 @@ async def define_sourcing_criterias_command(update: Update, context: ContextType
             vacancy_description,
             prompt_text,
             vacancy_data_dir,
-            update,
-            context,
             task_id=f"vacancy_analysis_{bot_user_id}_{target_vacancy_id}"
         )
     except Exception as e:
         logger.error(f"Error in define_sourcing_criterias_command: {e}", exc_info=True)
-        await send_message_to_user(update, context, text=FAIL_TECHNICAL_SUPPORT_TEXT)
-        # Send notification to admin about the error
-        if context.application:
-            await send_message_to_admin(
-                application=context.application,
-                text=f"⚠️ Error in define_sourcing_criterias_command: {e}\nUser ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
-            )
+        raise 
 
 
 async def get_sourcing_criterias_from_ai_and_save_to_file(
+    bot_user_id: str,
     vacancy_description: dict,
     prompt_text: str,
     vacancy_data_dir: Path,
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
     ) -> None:
     # TAGS: [vacancy_related]
     """
@@ -1455,8 +1602,7 @@ async def get_sourcing_criterias_from_ai_and_save_to_file(
 
     # ----- IDENTIFY USER and pull required data from records -----
 
-    bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
-    logger.info(f"get_sourcing_criterias_from_ai_and_save_to_file started. user_id: {bot_user_id}")
+    logger.info(f"get_sourcing_criterias_from_ai_and_save_to_file: started. user_id: {bot_user_id}")
 
     try:
         
@@ -1473,187 +1619,194 @@ async def get_sourcing_criterias_from_ai_and_save_to_file(
         with open(sourcing_file_path, "w", encoding="utf-8") as f:
             json.dump(vacancy_analysis_result, f, ensure_ascii=False, indent=2)
         
-        update_user_records_with_top_level_key(record_id=bot_user_id, key="vacancy_sourcing_criterias_recieved", value="yes")
+        update_user_records_with_top_level_key(record_id=bot_user_id, key="vacancy_sourcing_criterias_recieved", value="yes") # ValueError raised if fails
+        logger.info(f"get_sourcing_criterias_from_ai_and_save_to_file: successfully saved sourcing criterias to file: {sourcing_file_path}")
+    
+    except Exception as e:
+        logger.error(f"Failed to get sourcing criterias and save to file for user {bot_user_id}: {e}", exc_info=True)        # Send notification to admin about the error
+        raise
+
+
+async def send_to_user_sourcing_criterias_triggered_by_admin_command(bot_user_id: str, application: Application) -> None:
+
+    try:
+        
+        # ----- IDENTIFY USER and pull required data from records -----
+
+        target_vacancy_id = get_target_vacancy_id_from_records(record_id=bot_user_id)
+        vacancy_data_dir = get_vacancy_directory(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id)
+        sourcing_file_path = Path(vacancy_data_dir) / "sourcing_criterias.json"
 
         # Format and send result to user
         formatted_result = format_vacancy_analysis_result_for_markdown(str(sourcing_file_path))
-        await send_message_to_user(
-            update,
-            context,
-            text=f"Проанализировал вакансию и буду отбирать кандидатов по следующим критериям:\n\n{formatted_result}",
-            parse_mode=ParseMode.MARKDOWN
-        )
-        await asyncio.sleep(1)
-        await send_message_to_user(update, context, text=SUCCESS_TO_START_SOURCING_TEXT)
         
-    except Exception as e:
-        logger.error(f"Failed to process vacancy analysis: {e}", exc_info=True)        # Send notification to admin about the error
-        if context.application:
-            await send_message_to_admin(
-                application=context.application,
-                text=f"⚠️ Error getting sourcing criterias from AI: {e}\nUser ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+        if application and application.bot:
+            await application.bot.send_message(
+                chat_id=int(bot_user_id),
+                text=f"{INFO_ABOUT_SOURCING_CRITERIAS_TEXT}\n\n{formatted_result}",
+                parse_mode=ParseMode.MARKDOWN
+            )
+            await asyncio.sleep(1)
+            await application.bot.send_message(
+                chat_id=int(bot_user_id),
+                text=SUCCESS_TO_START_SOURCING_TEXT
             )
 
-
-
-
-########################################################################################
-# ------------ COMMANDS EXECUTED on ADMIN request ------------
-########################################################################################
+        else:
+            raise ValueError(f"Missing required application or bot instance for sending message to user {bot_user_id}")
+    except Exception as e:
+        logger.error(f"Failed to send sourcing criterias result to user: {e}", exc_info=True)
+        raise
 
 
 async def source_negotiations_triggered_by_admin_command(bot_user_id: str) -> None:
     # TAGS: [resume_related]
     """Sources negotiations collection."""
     
-    logger.info(f"source_negotiations_triggered_by_admin_command started. user_id: {bot_user_id}")
+    try:
+        logger.info(f"source_negotiations_triggered_by_admin_command started. user_id: {bot_user_id}")
 
-    # ----- IDENTIFY USER and pull required data from records -----
-    
-    access_token = get_access_token_from_records(bot_user_id=bot_user_id)
-    target_vacancy_id = get_target_vacancy_id_from_records(record_id=bot_user_id)
+        # ----- IDENTIFY USER and pull required data from records -----
+        
+        access_token = get_access_token_from_records(bot_user_id=bot_user_id)
+        target_vacancy_id = get_target_vacancy_id_from_records(record_id=bot_user_id)
 
-    # ----- IMPORTANT: do not check if NEGOTIATIONS COLLECTION file exists, we update it every time -----
+        # ----- IMPORTANT: do not check if NEGOTIATIONS COLLECTION file exists, we update it every time -----
 
-    # ----- PULL COLLECTIONS of negotiations and save it to file -----
+        # ----- PULL COLLECTIONS of negotiations and save it to file -----
 
-    #Define what employer_state to use for pulling the collection
-    target_employer_state = TARGET_EMPLOYER_STATE_COLLECTION_STATUS
-    #Build path to the file for the collection of negotiations data
-    vacancy_data_dir = get_vacancy_directory(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id)
-    negotiations_collection_file_path = vacancy_data_dir / f"negotiations_collections_{target_employer_state}.json"
-    
-    #Get collection of negotiations data for the target collection status "consider"
-    negotiations_collection_data = get_negotiations_by_collection(access_token=access_token, vacancy_id=target_vacancy_id, collection=target_employer_state)
-    # Write negotiations data JSON into negotiations_file_path
-    # If file already exists, it will be overwritten.
-    create_json_file_with_dictionary_content(file_path=str(negotiations_collection_file_path), content_to_write=negotiations_collection_data)
+        #Define what employer_state to use for pulling the collection
+        target_employer_state = TARGET_EMPLOYER_STATE_COLLECTION_STATUS
+        #Build path to the file for the collection of negotiations data
+        vacancy_data_dir = get_vacancy_directory(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id)
+        negotiations_collection_file_path = vacancy_data_dir / f"negotiations_collections_{target_employer_state}.json"
+        
+        #Get collection of negotiations data for the target collection status "consider"
+        negotiations_collection_data = get_negotiations_by_collection(access_token=access_token, vacancy_id=target_vacancy_id, collection=target_employer_state)
+        # Write negotiations data JSON into negotiations_file_path
+        # If file already exists, it will be overwritten.
+        create_json_file_with_dictionary_content(file_path=str(negotiations_collection_file_path), content_to_write=negotiations_collection_data)
+        logger.info(f"source_negotiations_triggered_by_admin_command: successfully completed for user_id: {bot_user_id}")
+    except Exception as e:
+        logger.error(f"source_negotiations_triggered_by_admin_command: Failed to source negotiations for user_id {bot_user_id}: {e}", exc_info=True)
+        raise
 
 
 async def source_resumes_triggered_by_admin_command(bot_user_id: str) -> None:
     # TAGS: [resume_related]
     """Sources resumes from negotiations."""
-
-    logger.info(f"source_resumes_triggered_by_admin_command: started. User_id: {bot_user_id}")
     
-    # ----- IDENTIFY USER and pull required data from records -----
-    
-    access_token = get_access_token_from_records(bot_user_id=bot_user_id)
-    target_vacancy_id = get_target_vacancy_id_from_records(record_id=bot_user_id)
-    target_employer_state = TARGET_EMPLOYER_STATE_COLLECTION_STATUS
-    
-    # ----- CHECK IF NEGOTIATIONS COLLECTION file exists, otherwise trigger source negotiations command -----
-    
-    if not is_negotiations_collection_file_exists(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, target_employer_state=target_employer_state):
-        return
-
-    # ----- CHECK IF RESUME RECORDS file exists, otherwise trigger source resumes command -----
-    
-    if not is_resume_records_file_exists(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id):
-        create_resumes_directory_and_subdirectories(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_subdirectories=RESUME_SUBDIRECTORIES_LIST)
-        create_resume_records_file(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id)
-
-    # ----- SOURCE RESUMES IDs from negotiations collection -----
-
-    #Build path to the file for the collection of negotiations data
-    vacancy_data_dir = get_vacancy_directory(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id)
-    negotiations_collection_file_path = vacancy_data_dir / f"negotiations_collections_{target_employer_state}.json"
-    #Open negotiations collection data file and get resumes IDs
-    with open(negotiations_collection_file_path, "r", encoding="utf-8") as f:
-        negotiations_collection_data = json.load(f)
-    resume_ids_from_negotiations_collection = []
-    tmp_resume_id_and_negotiation_id_dict = {}
-    for negotiations_collection_item in negotiations_collection_data["items"]:
-        #add resume_id to the list
-        resume_ids_from_negotiations_collection.append(negotiations_collection_item["resume"]["id"])
-        #key is resume_id, value is negotiation_id - required for updating resume records file and send message to the user
-        tmp_resume_id_and_negotiation_id_dict[negotiations_collection_item["resume"]["id"]] = negotiations_collection_item["id"]
-    logger.debug(f"source_resumes_triggered_by_admin_command: tmp_negotiation_id_dict: {tmp_resume_id_and_negotiation_id_dict}")
-    logger.debug(f"source_resumes_triggered_by_admin_command: resume_ids: {resume_ids_from_negotiations_collection}")
-
-    # ----- COLLECT RESUMES IDs from resume records -----
-    
-    # Create empty list of resume IDs from resume_records.json
-    resumes_ids_in_resume_records = []
-    # Get resume records file path and read existing resume IDs
-    resume_records_file_path = get_resume_records_file_path(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id)
-    with open(resume_records_file_path, "r", encoding="utf-8") as f:
-        resume_records = json.load(f)
-        # Append all resume_ids (keys) from resume_records.json to the list
-        resumes_ids_in_resume_records = list(resume_records.keys())
-    
-    # ----- FILTER ONLY FRESH RESUMES IDs not existing in resume records -----
-
-    # Compare and exclude resume_ids that already exist in resume_records
-    fresh_resume_ids_list = []
-    for resume_id in resume_ids_from_negotiations_collection:
-        if resume_id not in resumes_ids_in_resume_records:
-            fresh_resume_ids_list.append(resume_id)
-    logger.debug(f"source_resumes_triggered_by_admin_command: New resume IDs to process: {fresh_resume_ids_list}")
-
-    # ----- PREPARE RESUME directory for 'new' resumes -----
-
-    resume_data_dir = get_resume_directory(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id)
-    #Get path to the directory for new resumes
-    new_resume_data_dir = Path(resume_data_dir) / "new"
-
-    # ----- DOWNLOAD RESUMES from HH.ru to "new" resumes -----
-
-    #Download resumes from HH.ru and save to file
-    for resume_id in fresh_resume_ids_list:
-        resume_file_path = new_resume_data_dir / f"resume_{resume_id}.json"
-        resume_data = get_resume_info(access_token=access_token, resume_id=resume_id)
-        # Write resume data JSON into resume_file_path
-        create_json_file_with_dictionary_content(file_path=str(resume_file_path), content_to_write=resume_data)
-
-        # ----- UPDATE RESUME_RECORDS file with new resume_record_id and contact data -----
-
-        #Create new resume record in resume records file with specific structure
-        create_record_for_new_resume_id_in_resume_records(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id)
- 
-         # ----- ENRICH RESUME_RECORDS file with resume data -----
-
-        # Update resume records with new resume data
-        negotiation_id = tmp_resume_id_and_negotiation_id_dict[resume_id]
-        first_name = resume_data.get("first_name", "")
-        last_name = resume_data.get("last_name", "")
+    try:
+        logger.info(f"source_resumes_triggered_by_admin_command: started. User_id: {bot_user_id}")
         
-        # Safely extract phone and email from contact array
-        phone = ""
-        email = ""
-        contacts_list = resume_data.get("contact", [])
+        # ----- IDENTIFY USER and pull required data from records -----
         
-        for contact in contacts_list:
-            # Handle both "value" and "contact_value" keys
-            contact_data = contact.get("contact_value") or contact.get("value")
+        access_token = get_access_token_from_records(bot_user_id=bot_user_id)
+        target_vacancy_id = get_target_vacancy_id_from_records(record_id=bot_user_id)
+        target_employer_state = TARGET_EMPLOYER_STATE_COLLECTION_STATUS
+        
+        # ----- CHECK IF NEGOTIATIONS COLLECTION file exists, otherwise trigger source negotiations command -----
+        
+        if not is_negotiations_collection_file_exists(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, target_employer_state=target_employer_state):
+            raise ValueError(f"Negotiations collection file does not exist for user {bot_user_id} and vacancy {target_vacancy_id}")
+
+        # ----- CHECK IF RESUME RECORDS file exists, otherwise trigger source resumes command -----
+        
+        if not is_resume_records_file_exists(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id):
+            create_resumes_directory_and_subdirectories(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_subdirectories=RESUME_SUBDIRECTORIES_LIST)
+            create_resume_records_file(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id)
+
+        # ----- SOURCE FRESH RESUMES IDs from negotiations collection -----
+
+        #Build path to the file for the collection of negotiations data
+        vacancy_data_dir = get_vacancy_directory(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id)
+        negotiations_collection_file_path = vacancy_data_dir / f"negotiations_collections_{target_employer_state}.json"
+        #Open negotiations collection data file and get resumes IDs
+        with open(negotiations_collection_file_path, "r", encoding="utf-8") as f:
+            negotiations_collection_data = json.load(f)
+
+        fresh_resume_ids_from_negotiations_collection = []
+        tmp_resume_id_and_negotiation_id_dict = {} # used to update resume records file with negotiation_id
+        
+        for negotiations_collection_item in negotiations_collection_data["items"]:
+            resume_id = negotiations_collection_item["resume"]["id"]
+            if not is_resume_id_exists_in_resume_records(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id):
+                fresh_resume_ids_from_negotiations_collection.append(resume_id)
+                tmp_resume_id_and_negotiation_id_dict[resume_id] = negotiations_collection_item["id"]
+        
+        logger.debug(f"source_resumes_triggered_by_admin_command: number of fresh resumes found in negotiations collection: {len(fresh_resume_ids_from_negotiations_collection)}")
+        logger.debug(f"source_resumes_triggered_by_admin_command: fresh resume IDs: {fresh_resume_ids_from_negotiations_collection}")
+
+        if not fresh_resume_ids_from_negotiations_collection:
+            raise ValueError(f"No fresh resumes found in negotiations collection for user {bot_user_id} and vacancy {target_vacancy_id}")
+
+        # ----- PREPARE RESUME directory for 'new' resumes -----
+
+        resume_data_dir = get_resume_directory(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id)
+        #Get path to the directory for new resumes
+        new_resume_data_dir = Path(resume_data_dir) / "new"
+
+        # ----- DOWNLOAD RESUMES from HH.ru to "new" resumes -----
+
+        #Download resumes from HH.ru and save to file
+        for resume_id in fresh_resume_ids_from_negotiations_collection:
+            resume_file_path = new_resume_data_dir / f"resume_{resume_id}.json"
+            resume_data = get_resume_info(access_token=access_token, resume_id=resume_id)
+            # Write resume data JSON into resume_file_path
+            create_json_file_with_dictionary_content(file_path=str(resume_file_path), content_to_write=resume_data)
+            logger.debug(f"source_resumes_triggered_by_admin_command: successfully downloaded resume {resume_id} to file: {resume_file_path}")
+
+            # ----- UPDATE RESUME_RECORDS file with new resume_record_id and contact data -----
+
+            #Create new resume record in resume records file with specific structure
+            create_record_for_new_resume_id_in_resume_records(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id)
+            logger.debug(f"source_resumes_triggered_by_admin_command: successfully created new resume record in resume records file with resume_record_id: {resume_id}")
+    
+            # ----- ENRICH RESUME_RECORDS file with resume data -----
+
+            # Update resume records with new resume data
+            negotiation_id = tmp_resume_id_and_negotiation_id_dict[resume_id]
+            first_name = resume_data.get("first_name", "")
+            last_name = resume_data.get("last_name", "")
             
-            # Skip if contact_data is None or not a string
-            if not isinstance(contact_data, str):
-                continue
+            # Safely extract phone and email from contact array
+            phone = ""
+            email = ""
+            contacts_list = resume_data.get("contact", [])
             
-            # Filter email by '@' sign
-            if "@" in contact_data:
-                email = contact_data
-            elif not phone:
-                # If it's a string but not email, assume it's phone (if phone not set yet)
-                phone = contact_data
-        
-        # Log warning if contact data is missing
-        if not phone and not email:
-            logger.warning(f"source_resumes_triggered_by_admin_command: No contact information found for resume {resume_id}")
-        elif not phone:
-            logger.debug(f"source_resumes_triggered_by_admin_command: No phone found for resume {resume_id}, email: {email}")
-        elif not email:
-            logger.debug(f"source_resumes_triggered_by_admin_command: No email found for resume {resume_id}, phone: {phone}")
+            for contact in contacts_list:
+                # Handle both "value" and "contact_value" keys
+                contact_data = contact.get("contact_value") or contact.get("value")
+                
+                # Skip if contact_data is None or not a string
+                if not isinstance(contact_data, str):
+                    continue
+                
+                # Filter email by '@' sign
+                if "@" in contact_data:
+                    email = contact_data
+                elif not phone:
+                    # If it's a string but not email, assume it's phone (if phone not set yet)
+                    phone = contact_data
+            
+            # Log warning if contact data is missing
+            if not phone:
+                logger.warning(f"source_resumes_triggered_by_admin_command: No phone found for resume {resume_id}")
+            if not email:
+                logger.debug(f"source_resumes_triggered_by_admin_command: No email found for resume {resume_id}")
 
-        update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="negotiation_id", value=negotiation_id)
-        update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="first_name", value=first_name)
-        update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="last_name", value=last_name)
-        update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="phone", value=phone)
-        update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="email", value=email)
-        # If cannot update resume records, ValueError is raised from method: update_resume_record_with_top_level_key()
+            update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="negotiation_id", value=negotiation_id) # ValueError raised if fails
+            update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="first_name", value=first_name) # ValueError raised if fails
+            update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="last_name", value=last_name) # ValueError raised if fails
+            update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="phone", value=phone) # ValueError raised if fails
+            update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="email", value=email) # ValueError raised if fails
+            logger.debug(f"source_resumes_triggered_by_admin_command: successfully updated resume records file with new resume_record_id: {resume_id}")
 
-    logger.info(f"source_resumes_triggered_by_admin_command:Found {len(fresh_resume_ids_list)} new resumes")
+        logger.info(f"source_resumes_triggered_by_admin_command: successfully completed for user_id: {bot_user_id}")
+    
+    except Exception as e:
+        logger.error(f"source_resumes_triggered_by_admin_command: Failed to source resumes for user_id {bot_user_id}: {e}", exc_info=True)
+        raise
 
 
 async def analyze_resume_triggered_by_admin_command(bot_user_id: str) -> None:
@@ -1829,6 +1982,7 @@ async def send_message_to_applicant_command(bot_user_id: str, resume_id: str) ->
     new_status_of_request_to_shoot_resume_video = "yes"
     update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="request_to_shoot_resume_video_sent", value=new_status_of_request_to_shoot_resume_video)
     # If cannot update resume records, ValueError is raised from method: update_resume_record_with_top_level_key()
+
 
 async def change_employer_state_command(bot_user_id: str, resume_id: str) -> None:
     # TAGS: [resume_related]

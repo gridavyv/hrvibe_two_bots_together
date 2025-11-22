@@ -205,6 +205,7 @@ def create_record_for_new_resume_id_in_resume_records(bot_user_id: str, vacancy_
 
 
 def create_oauth_link(state: str) -> str:
+    # TAGS: [create_data]
     """
     Get the OAuth link for HH.ru authentication.
     """
@@ -379,6 +380,7 @@ def get_decision_status_from_selected_callback_code(selected_callback_code: str)
 
 
 def get_access_token_from_callback_endpoint_resp(endpoint_response: dict) -> Optional[str]:
+    # TAGS: [get_data]
     """Get access token from endpoint response. TAGS: [get_data]"""
     if isinstance(endpoint_response, dict):
         # return access_token if it exists in endpoint_response, otherwise return None
@@ -562,21 +564,25 @@ def get_list_of_users_from_records() -> list[str]:
 # ****** METHODS with TAGS: [update_data] ******
 
 def update_user_records_with_top_level_key(record_id: int | str, key: str, value: str | int | bool | dict | list) -> None:
-    """Only updates if the user_id exists in the JSON. TAGS: [update_data]"""
-    users_records_path = get_users_records_file_path()
-    # Read existing data
-    with open(users_records_path, "r", encoding="utf-8") as f:
-        records = json.load(f)
-    
-    # Convert user_id to string since JSON keys are always strings
-    record_id_str = str(record_id)
-    
-    if record_id_str in records:
-        records[record_id_str][key] = value
-        users_records_path.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
-        logger.info(f"{record_id_str} has been successfully updated with {key}={value}")
-    else:
-        logger.debug(f"Skipping update: user_id {record_id_str} does not exist in the file")
+    # TAGS: [update_data]
+    """Only updates if the user_id exists in the JSON."""
+    try:
+        users_records_path = get_users_records_file_path()
+        # Read existing data
+        with open(users_records_path, "r", encoding="utf-8") as f:
+            records = json.load(f)
+        
+        # Convert user_id to string since JSON keys are always strings
+        record_id_str = str(record_id)
+        
+        if record_id_str in records:
+            records[record_id_str][key] = value
+            users_records_path.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
+            logger.info(f"{record_id_str} has been successfully updated with {key}={value}")
+        else:
+            raise ValueError(f"User record {record_id_str} does not exist in the file {users_records_path}")
+    except Exception as e:
+        raise ValueError(f"Error updating user records with top level key: {e}")
 
 
 def update_resume_record_with_top_level_key(bot_user_id: str, vacancy_id: str, resume_record_id: str, key: str, value: str | int | bool | dict | list) -> None:
@@ -593,6 +599,7 @@ def update_resume_record_with_top_level_key(bot_user_id: str, vacancy_id: str, r
             raise ValueError(f"Resume record {resume_record_id} does not exist in the file {resume_records_path}")
     except Exception as e:
         raise ValueError(f"Error updating resume record with top level key: {e}")
+
 
 # ****** METHODS with TAGS: [persistent_keyboard] ******
 

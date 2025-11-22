@@ -209,6 +209,20 @@ def is_resume_records_file_not_empty(bot_user_id: str, vacancy_id: str) -> bool:
         return False
 
 
+def is_resume_id_exists_in_resume_records(bot_user_id: str, vacancy_id: str, resume_record_id: str) -> bool:
+    # TAGS: [status_validation]
+    """Check if resume record exists."""
+    resume_records_file_path = get_resume_records_file_path(bot_user_id=bot_user_id, vacancy_id=vacancy_id)
+    with open(resume_records_file_path, "r", encoding="utf-8") as f:
+        resume_records = json.load(f)
+    if resume_record_id in resume_records.keys():
+        logger.debug(f"'resume_id': {resume_record_id} found in {resume_records_file_path}")
+        return True
+    else:
+        logger.debug(f"'resume_id': {resume_record_id} not found in {resume_records_file_path}")
+        return False
+
+
 def is_applicant_video_recorded(bot_user_id: str, vacancy_id: str, resume_id: str) -> bool:
     # TAGS: [status_validation]
     """Check if applicant video is recorded."""
