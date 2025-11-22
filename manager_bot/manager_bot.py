@@ -15,7 +15,7 @@ import re
 logger = logging.getLogger(__name__)
 
 from pydantic.type_adapter import P
-from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update, InputFile
 from telegram.constants import ParseMode
 from telegram.ext import (  
     Application,
@@ -25,6 +25,8 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
+
+from telegram.error import TelegramError
 
 from services.video_service import (
     process_incoming_video,
@@ -496,6 +498,84 @@ async def admin_send_message_command(update: Update, context: ContextTypes.DEFAU
             await send_message_to_admin(
                 application=context.application,
                 text=f"⚠️ Error executing admin_send_message_to_user command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+            )
+
+
+async def admin_pull_log_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    #TAGS: [admin]
+    """
+    Admin command to pull and send log files.
+    Usage: /admin_pull_log <log_type> <log_name>
+    Usage example: /admin_pull_log manager_bot 1234432.log
+    Sends the log file as a document to the admin chat.
+    """
+    
+    try:
+        # ----- IDENTIFY USER and pull required data from records -----
+
+        bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        logger.info(f"admin_pull_log_command: started. User_id: {bot_user_id}")
+        
+        #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
+
+        admin_id = os.getenv("ADMIN_ID", "")
+        if not admin_id or bot_user_id != admin_id:
+            await send_message_to_user(update, context, text=FAIL_TO_IDENTIFY_USER_AS_ADMIN_TEXT)
+            logger.error(f"Unauthorized for {bot_user_id}")
+            return
+
+        # ----- PARSE COMMAND ARGUMENTS -----
+
+        if not context.args or len(context.args) < 2:
+            invalid_args_text = "Invalid request format.\nValid: /admin_pull_log <log_type> <log_name>"
+            raise ValueError(invalid_args_text)
+        
+        log_type = context.args[0]
+        log_name = context.args[1]
+
+        # ----- VALIDATE LOG_TYPE -----
+
+        valid_log_types = ["applicant_bot_logs", "manager_bot_logs", "orchestrator_logs"]
+        if log_type not in valid_log_types:
+            invalid_log_type_text = f"Invalid log type: {log_type}\nValid types: {', '.join(valid_log_types)}"
+            raise ValueError(invalid_log_type_text)
+
+        # ----- CONSTRUCT LOG FILE PATH -----
+
+        data_dir = Path(os.getenv("USERS_DATA_DIR", "/users_data"))
+        log_file_path = data_dir / "logs" / log_type / log_name
+
+        # ----- CHECK IF FILE EXISTS -----
+
+        if not log_file_path.exists():
+            invalid_log_path_text = f"Invalid log path'{log_file_path}'. File not found"
+            raise FileNotFoundError(invalid_log_path_text)
+            
+            return
+
+        # ----- SEND LOG FILE TO USER -----
+
+        if context.application and context.application.bot:
+            try:
+                chat_id = update.effective_chat.id
+                with open(log_file_path, 'rb') as log_file:
+                    await context.application.bot.send_document(
+                        chat_id=chat_id,
+                        document=InputFile(log_file, filename=log_name),
+                        caption=f"📄 Log file: {log_name}\nLog Type: {log_type}"
+                    )
+                logger.info(f"admin_pull_log_command: log file '{log_file_path}' sent to user {bot_user_id}")
+            except Exception as send_err:
+                raise TelegramError(f"Failed to send log file '{log_file_path}': {send_err}")
+        else:
+            raise RuntimeError("Application or bot instance not available")
+    except Exception as e:
+        logger.error(f"admin_pull_log_command: Failed to execute: {e}", exc_info=True)
+        # Send notification to admin about the error
+        if context.application:
+            await send_message_to_admin(
+                application=context.application,
+                text=f"⚠️ Error admin_pull_log_command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
             )
 
 
