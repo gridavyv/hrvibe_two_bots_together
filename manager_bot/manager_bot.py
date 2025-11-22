@@ -228,7 +228,7 @@ async def admin_anazlyze_sourcing_criterais_command(update: Update, context: Con
                 if is_user_in_records(record_id=target_user_id):
                     if is_vacany_data_enough_for_resume_analysis(user_id=target_user_id):
                         await define_sourcing_criterias_triggered_by_admin_command(bot_user_id=target_user_id)
-                        await send_message_to_user(update, context, text="Sourcing criterias analyzed for user {target_user_id}.")
+                        await send_message_to_user(update, context, text=f"Sourcing criterias analyzed for user {target_user_id}.")
                     else:
                         raise ValueError(f"User {target_user_id} does not have enough vacancy data for resume analysis.")
                 else:
@@ -279,7 +279,7 @@ async def admin_send_sourcing_criterais_to_user_command(update: Update, context:
                 if is_user_in_records(record_id=target_user_id):
                     if is_vacany_data_enough_for_resume_analysis(user_id=target_user_id):
                         await send_to_user_sourcing_criterias_triggered_by_admin_command(bot_user_id=target_user_id, application=context.application)
-                        await send_message_to_user(update, context, text="Sourcing criterias analyzed for user {target_user_id}.")
+                        await send_message_to_user(update, context, text=f"Sourcing criterias sent to user {target_user_id}.")
                     else:
                         raise ValueError(f"User {target_user_id} does not have enough vacancy data for resume analysis.")
                 else:
@@ -380,7 +380,7 @@ async def admin_get_fresh_resumes_command(update: Update, context: ContextTypes.
                 if is_user_in_records(record_id=target_user_id):
                     if is_vacany_data_enough_for_resume_analysis(user_id=target_user_id):
                         await source_resumes_triggered_by_admin_command(bot_user_id=target_user_id)
-                        await send_message_to_user(update, context, text="Negotiations collection updated for user {target_user_id}.")
+                        await send_message_to_user(update, context, text=f"Fresh resumes collected for user {target_user_id}.")
                     else:
                         raise ValueError(f"User {target_user_id} does not have enough vacancy data for resume analysis.")
                 else:
@@ -430,7 +430,7 @@ async def admin_anazlyze_resumes_command(update: Update, context: ContextTypes.D
                 if is_user_in_records(record_id=target_user_id):
                     if is_vacany_data_enough_for_resume_analysis(user_id=target_user_id):
                         await analyze_resume_triggered_by_admin_command(bot_user_id=target_user_id)
-                        await send_message_to_user(update, context, text="Negotiations collection updated for user {target_user_id}.")
+                        await send_message_to_user(update, context, text=f"Fresh resumes analyzed for user {target_user_id}.")
                     else:
                         raise ValueError(f"User {target_user_id} does not have enough vacancy data for resume analysis.")
                 else:
@@ -471,24 +471,26 @@ async def admin_update_resume_records_with_applicants_video_status_for_all_comma
             logger.error(f"Unauthorized for {bot_user_id}")
             return
 
+        # ----- PARSE COMMAND ARGUMENTS -----
 
-        # ----- UPDATE RESUME RECORDS with FRESH VIDEOS from applicants for each user -----
-
-        user_ids = get_list_of_users_from_records()
-        videos_updated = 0
-        for user_id in user_ids:
-            if is_vacany_data_enough_for_resume_analysis(user_id=user_id):
-                # Get vacancy_id for each user individually
-                user_vacancy_id = get_target_vacancy_id_from_records(record_id=user_id)
-                if user_vacancy_id:
-                    await update_resume_records_with_fresh_video_from_applicants_triggered_by_admin_command(bot_user_id=user_id, vacancy_id=user_vacancy_id)
-                    videos_updated += 1
+        target_user_id = None
+        if context.args and len(context.args) == 1:
+            target_user_id = context.args[0]
+            if target_user_id:
+                if is_user_in_records(record_id=target_user_id):
+                    if is_vacany_data_enough_for_resume_analysis(user_id=target_user_id):
+                        target_user_vacancy_id = get_target_vacancy_id_from_records(record_id=target_user_id)
+                        await update_resume_records_with_fresh_video_from_applicants_triggered_by_admin_command(bot_user_id=target_user_id, vacancy_id=target_user_vacancy_id)
+                        await send_message_to_user(update, context, text=f"Resume records updated with fresh videos from applicants for user {target_user_id}.")
+                    else:
+                        raise ValueError(f"User {target_user_id} does not have enough vacancy data for resume analysis.")
                 else:
-                    logger.debug(f"admin_update_resume_records_with_applicants_video_status_for_all_command: User {user_id} does not have a vacancy selected. Video update skipped.")
+                    raise ValueError(f"User {target_user_id} not found in records.")
             else:
-                logger.debug(f"admin_update_resume_records_with_applicants_video_status_for_all_command: User {user_id} does not have enough vacancy data for resume analysis. Video update skipped.")
+                raise ValueError(f"Invalid command arguments. Usage: /admin_update_resume_records_with_applicants_video_status_for_all <user_id>")
+        else:
+            raise ValueError(f"Invalid number of arguments. Usage: /admin_update_resume_records_with_applicants_video_status_for_all <user_id>")
 
-        await send_message_to_user(update, context, text=f"Total users: {len(user_ids)}. Tasks to update resume records with fresh videos from applicants triggered for: {videos_updated} users.")
     
     except Exception as e:
         logger.error(f"admin_update_resume_records_with_applicants_video_status_for_all_command: Failed to execute command: {e}", exc_info=True)
@@ -1559,7 +1561,7 @@ async def define_sourcing_criterias_triggered_by_admin_command(bot_user_id: str)
         # ----- CHECK IF SOURCING CRITERIA is already derived and STOP if it is -----
 
         if is_sourcing_criterias_file_exists(record_id=bot_user_id, vacancy_id=target_vacancy_id):
-            raise ValueError(f"Sourcing criterias already derived for user {bot_user_id} and vacancy {target_vacancy_id}")
+            raise ValueError(f"Sourcing criterias already exists for user {bot_user_id} and vacancy {target_vacancy_id}")
 
         # ----- DO AI ANALYSIS of the vacancy description  -----
 
