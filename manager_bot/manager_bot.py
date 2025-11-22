@@ -234,9 +234,9 @@ async def admin_anazlyze_sourcing_criterais_command(update: Update, context: Con
                 else:
                     raise ValueError(f"User {target_user_id} not found in records.")
             else:
-                raise ValueError(f"Invalid command arguments. Usage: /admin_update_negotiations <user_id>")
+                raise ValueError(f"Invalid command arguments. Usage: /admin_analyze_criterias <user_id>")
         else:
-            raise ValueError(f"Invalid number of arguments. Usage: /admin_update_negotiations <user_id>")
+            raise ValueError(f"Invalid number of arguments. Usage: /admin_analyze_criterias <user_id>")
     
     except Exception as e:
         logger.error(f"admin_update_negotiations_command: Failed to execute command: {e}", exc_info=True)
@@ -285,9 +285,9 @@ async def admin_send_sourcing_criterais_to_user_command(update: Update, context:
                 else:
                     raise ValueError(f"User {target_user_id} not found in records.")
             else:
-                raise ValueError(f"Invalid command arguments. Usage: /admin_update_negotiations <user_id>")
+                raise ValueError(f"Invalid command arguments. Usage: /admin_send_criterias_to_user <user_id>")
         else:
-            raise ValueError(f"Invalid number of arguments. Usage: /admin_update_negotiations <user_id>")
+            raise ValueError(f"Invalid number of arguments. Usage: /admin_send_criterias_to_user <user_id>")
     
     except Exception as e:
         logger.error(f"admin_send_sourcing_criterais_to_user_command: Failed: {e}", exc_info=True)
@@ -336,9 +336,9 @@ async def admin_update_negotiations_command(update: Update, context: ContextType
                 else:
                     raise ValueError(f"User {target_user_id} not found in records.")
             else:
-                raise ValueError(f"Invalid command arguments. Usage: /admin_update_negotiations <user_id>")
+                raise ValueError(f"Invalid command arguments. Usage: /admin_update_neg_coll <user_id>")
         else:
-            raise ValueError(f"Invalid number of arguments. Usage: /admin_update_negotiations <user_id>")
+            raise ValueError(f"Invalid number of arguments. Usage: /admin_update_neg_coll <user_id>")
     
     except Exception as e:
         logger.error(f"admin_update_negotiations_command: Failed to execute command: {e}", exc_info=True)
@@ -386,9 +386,9 @@ async def admin_get_fresh_resumes_command(update: Update, context: ContextTypes.
                 else:
                     raise ValueError(f"User {target_user_id} not found in records.")
             else:
-                raise ValueError(f"Invalid command arguments. Usage: /admin_update_negotiations <user_id>")
+                raise ValueError(f"Invalid command arguments. Usage: /admin_get_fresh_resumes <user_id>")
         else:
-            raise ValueError(f"Invalid number of arguments. Usage: /admin_update_negotiations <user_id>")
+            raise ValueError(f"Invalid number of arguments. Usage: /admin_get_fresh_resumes <user_id>")
 
     except Exception as e:
         logger.error(f"admin_get_fresh_resumes_command: Failed to execute command: {e}", exc_info=True)
@@ -436,9 +436,9 @@ async def admin_anazlyze_resumes_command(update: Update, context: ContextTypes.D
                 else:
                     raise ValueError(f"User {target_user_id} not found in records.")
             else:
-                raise ValueError(f"Invalid command arguments. Usage: /admin_update_negotiations <user_id>")
+                raise ValueError(f"Invalid command arguments. Usage: /admin_analyze_resumes <user_id>")
         else:
-            raise ValueError(f"Invalid number of arguments. Usage: /admin_update_negotiations <user_id>")
+            raise ValueError(f"Invalid number of arguments. Usage: /admin_analyze_resumes <user_id>")
     
     except Exception as e:
         logger.error(f"admin_anazlyze_resumes_command: Failed to execute command: {e}", exc_info=True)
@@ -536,9 +536,9 @@ async def admin_recommend_resumes_command(update: Update, context: ContextTypes.
                 else:
                     raise ValueError(f"User {target_user_id} not found in records.")
             else:
-                raise ValueError(f"Invalid command arguments. Usage: /admin_recommend_resumes_for_all <user_id>")
+                raise ValueError(f"Invalid command arguments. Usage: /admin_recommend <user_id>")
         else:
-            raise ValueError(f"Invalid number of arguments. Usage: /admin_recommend_resumes_for_all <user_id>")
+            raise ValueError(f"Invalid number of arguments. Usage: /admin_recommend <user_id>")
     
     except Exception as e:
         logger.error(f"admin_recommend_resumes_command: Failed to execute command: {e}", exc_info=True)
