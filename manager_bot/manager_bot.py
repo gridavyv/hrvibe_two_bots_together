@@ -579,6 +579,82 @@ async def admin_pull_log_command(update: Update, context: ContextTypes.DEFAULT_T
             )
 
 
+async def admin_pull_file_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    #TAGS: [admin]
+    """
+    Admin command to pull and send log files.
+    Usage: /admin_pull_file <file_relative_path>
+    Usage example: /admin_pull_file logs/manager_bot_logs/1234432.log
+    Sends the log file as a document to the admin chat.
+    """
+    
+    try:
+        # ----- IDENTIFY USER and pull required data from records -----
+
+        bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        logger.info(f"admin_pull_file_command: started. User_id: {bot_user_id}")
+        
+        #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
+
+        admin_id = os.getenv("ADMIN_ID", "")
+        if not admin_id or bot_user_id != admin_id:
+            await send_message_to_user(update, context, text=FAIL_TO_IDENTIFY_USER_AS_ADMIN_TEXT)
+            logger.error(f"Unauthorized for {bot_user_id}")
+            return
+
+        # ----- PARSE COMMAND ARGUMENTS -----
+
+        if not context.args or len(context.args) != 1:
+            invalid_args_text = "Invalid arguments.\nValid: /admin_pull_file <file_relative_path>"
+            raise ValueError(invalid_args_text)
+        
+        file_relative_path = context.args[0]
+
+        # ----- CONSTRUCT LOG FILE PATH -----
+
+        data_dir = Path(os.getenv("USERS_DATA_DIR", "/users_data"))
+        file_path = data_dir / file_relative_path
+        file_name = file_path.name
+
+        # ----- VALIDATE FILE EXTENSION -----
+
+        valid_extensions = [".log", ".json", ".mp4"]
+        file_extension = file_path.suffix
+        if file_extension not in valid_extensions:
+            invalid_extension_text = f"Invalid file extension.\nValid: {', '.join(valid_extensions)}"
+            raise ValueError(invalid_extension_text)
+
+        # ----- CHECK IF FILE EXISTS -----
+
+        if not file_path.exists():
+            invalid_path_text = f"Invalid file relative path'{file_relative_path}'. File not found"
+            raise FileNotFoundError(invalid_path_text)
+
+        # ----- SEND LOG FILE TO USER -----
+
+        if context.application and context.application.bot:
+            try:
+                chat_id = update.effective_chat.id
+                with open(file_path, 'rb') as file:
+                    await context.application.bot.send_document(
+                        chat_id=chat_id,
+                        document=InputFile(file, filename=file_name)
+                    )
+                logger.info(f"admin_pull_file_command: file '{file_path}' sent to user {bot_user_id}")
+            except Exception as send_err:
+                raise TelegramError(f"Failed to send file '{file_path}': {send_err}")
+        else:
+            raise RuntimeError("Application or bot instance not available")
+    except Exception as e:
+        logger.error(f"admin_pull_file_command: Failed to execute: {e}", exc_info=True)
+        # Send notification to admin about the error
+        if context.application:
+            await send_message_to_admin(
+                application=context.application,
+                text=f"⚠️ Error admin_pull_file_command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+            )
+
+
 ########################################################################################
 # ------------ AUTOMATIC FLOW ON START - can be triggered by from MAIN MENU ------------
 ########################################################################################

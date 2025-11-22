@@ -15,6 +15,7 @@ from manager_bot import (
     admin_recommend_applicants_with_video_for_all_command,
     admin_send_message_command,
     admin_pull_log_command,
+    admin_pull_file_command,
 )
 
 from services.data_service import (
@@ -86,6 +87,7 @@ async def run_manager_bot() -> None:
     application.add_handler(CommandHandler("admin_recommend_for_all", admin_recommend_applicants_with_video_for_all_command))
     application.add_handler(CommandHandler("admin_send_message", admin_send_message_command))
     application.add_handler(CommandHandler("admin_pull_log", admin_pull_log_command))
+    application.add_handler(CommandHandler("admin_pull_file", admin_pull_file_command))
     
     # ------------- STARTING OF THE TASK QUEUE WORKER for AI related tasks-------------
 
