@@ -209,7 +209,7 @@ async def admin_anazlyze_sourcing_criterais_command(update: Update, context: Con
         # ----- IDENTIFY USER and pull required data from records -----
 
         bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
-        logger.info(f"admin_update_negotiations_command: started. User_id: {bot_user_id}")
+        logger.info(f"admin_anazlyze_sourcing_criterais_command: started. User_id: {bot_user_id}")
 
         #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
 
@@ -226,7 +226,7 @@ async def admin_anazlyze_sourcing_criterais_command(update: Update, context: Con
             target_user_id = context.args[0]
             if target_user_id:
                 if is_user_in_records(record_id=target_user_id):
-                    if is_vacany_data_enough_for_resume_analysis(user_id=target_user_id):
+                    if is_vacancy_description_recieved(record_id=target_user_id):
                         await define_sourcing_criterias_triggered_by_admin_command(bot_user_id=target_user_id)
                         await send_message_to_user(update, context, text=f"Sourcing criterias analyzed for user {target_user_id}.")
                     else:
@@ -239,12 +239,12 @@ async def admin_anazlyze_sourcing_criterais_command(update: Update, context: Con
             raise ValueError(f"Invalid number of arguments. Usage: /admin_analyze_criterias <user_id>")
     
     except Exception as e:
-        logger.error(f"admin_update_negotiations_command: Failed to execute command: {e}", exc_info=True)
+        logger.error(f"admin_anazlyze_sourcing_criterais_command: Failed to execute command: {e}", exc_info=True)
         # Send notification to admin about the error
         if context.application:
             await send_message_to_admin(
                 application=context.application,
-                text=f"⚠️ Error admin_update_negotiations_command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+                text=f"⚠️ Error admin_anazlyze_sourcing_criterais_command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
             )
 
 
@@ -277,7 +277,7 @@ async def admin_send_sourcing_criterais_to_user_command(update: Update, context:
             target_user_id = context.args[0]
             if target_user_id:
                 if is_user_in_records(record_id=target_user_id):
-                    if is_vacany_data_enough_for_resume_analysis(user_id=target_user_id):
+                    if is_vacancy_sourcing_criterias_recieved(record_id=target_user_id):
                         await send_to_user_sourcing_criterias_triggered_by_admin_command(bot_user_id=target_user_id, application=context.application)
                         await send_message_to_user(update, context, text=f"Sourcing criterias sent to user {target_user_id}.")
                     else:
@@ -328,7 +328,7 @@ async def admin_update_negotiations_command(update: Update, context: ContextType
             target_user_id = context.args[0]
             if target_user_id:
                 if is_user_in_records(record_id=target_user_id):
-                    if is_vacany_data_enough_for_resume_analysis(user_id=target_user_id):
+                    if is_vacancy_selected(record_id=target_user_id):
                         await source_negotiations_triggered_by_admin_command(bot_user_id=target_user_id) # ValueError raised if fails
                         await send_message_to_user(update, context, text=f"Negotiations collection updated for user {target_user_id}.")
                     else:
