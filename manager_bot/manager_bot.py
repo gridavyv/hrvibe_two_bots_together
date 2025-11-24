@@ -1815,7 +1815,7 @@ async def source_resumes_triggered_by_admin_command(bot_user_id: str) -> None:
                 fail_count += 1
                 continue
 
-        logger.info(f"source_resumes_triggered_by_admin_command: Completed for user_id: {bot_user_id}. Success: {success_count}, Failed: {fail_count}, Total: {len(fresh_resume_ids_from_negotiations_collection)}")
+        logger.info(f"source_resumes_triggered_by_admin_command: Completed for user_id: {bot_user_id}. Success: {success_count}, Failed: {fail_count}, Total: {len(fresh_resume_id_and_negotiation_id_dict.keys())}")
     
     except Exception as e:
         logger.error(f"source_resumes_triggered_by_admin_command: Failed to source resumes for user_id {bot_user_id}: {e}", exc_info=True)
