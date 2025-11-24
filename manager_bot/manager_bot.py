@@ -101,6 +101,9 @@ from services.hh_service import (
     change_collection_status_of_negotiation,
     send_negotiation_message,
     get_resume_info,
+    get_available_employer_states_and_collections_negotiations,
+    get_negotiations_messages,
+    get_negotiations_history,
 )
 from services.ai_service import (
     analyze_vacancy_with_ai, 
@@ -128,6 +131,188 @@ USER_AGENT = os.getenv("USER_AGENT")
 
 # Global task queue for AI analysis tasks
 ai_task_queue = TaskQueue(maxsize=500)
+
+
+#############################################
+# ------------ TESTING COMMANDS ------------``
+#############################################
+
+
+
+async def test_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    #TAGS: [testing]
+    """
+    Usage: /test_command [command] [user_id] [resume_id]
+    """
+
+    try:
+        # ----- IDENTIFY USER and pull required data from records -----
+
+        bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        logger.info(f"test_negotiation_states_command: started. User_id: {bot_user_id}")
+
+        #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
+
+        admin_id = os.getenv("ADMIN_ID", "")
+        if not admin_id or bot_user_id != admin_id:
+            await send_message_to_user(update, context, text=FAIL_TO_IDENTIFY_USER_AS_ADMIN_TEXT)
+            logger.error(f"Unauthorized for {bot_user_id}")
+            return
+
+        # ----- PARSE COMMAND ARGUMENTS -----
+
+        command = None
+        target_user_id = None
+        target_resume_id = None
+        negotiation_state = None
+        if context.args:
+            target_user_id = context.args[0]
+            target_resume_id = context.args[1]
+            command = context.args[2]
+            negotiation_state = context.args[3]
+            if command == "get_states":
+                await get_states(bot_user_id=target_user_id) # ValueError raised if fails
+            elif command == "get_history":
+                await get_history(bot_user_id=target_user_id, resume_id=target_resume_id) # ValueError raised if fails
+            elif command == "change_status":
+                await change_status(bot_user_id=target_user_id, resume_id=target_resume_id) # ValueError raised if fails
+            elif command == "get_negotiations":
+                await get_negotiations(bot_user_id=target_user_id, negotiation_state=negotiation_state) # ValueError raised if fails
+            else:
+                raise ValueError(f"Invalid command. Usage: /test_command <user_id> <resume_id> <command>")
+        else:
+            raise ValueError(f"Invalid number of arguments. Usage: /test_negotiations_history <user_id>")
+    
+    except Exception as e:
+        logger.error(f"test_negotiation_states_command: Failed to execute command: {e}", exc_info=True)
+        # Send notification to admin about the error
+        if context.application:
+            await send_message_to_admin(
+                application=context.application,
+                text=f"⚠️ Error test_negotiation_states_command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+            )
+
+async def get_states(bot_user_id: str) -> None:
+    #TAGS: [testing]
+    """Get available employer_states_and_collections command handler - allows users to get available employer_states_and_collections"""
+    
+    # ----- IDENTIFY USER and pull required data from records -----
+    
+    access_token = get_access_token_from_records(bot_user_id=bot_user_id)
+    target_vacancy_id = get_target_vacancy_id_from_records(record_id=bot_user_id)
+    target_vacancy_name = get_target_vacancy_name_from_records(record_id=bot_user_id)
+
+
+    # ----- PULL AVAILABLE EMPLOYER_STATES and COLLECTIONS of negotiations for the vacancy and save it to file -----
+    vacancy_data_dir = get_vacancy_directory(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id)
+    available_employer_states_and_collections_file_path = vacancy_data_dir / f"available_employer_states_and_collections_negotiations.json"
+    available_employer_states_and_collections = get_available_employer_states_and_collections_negotiations(access_token=access_token, vacancy_id=target_vacancy_id)
+    create_json_file_with_dictionary_content(file_path=available_employer_states_and_collections_file_path, content_to_write=available_employer_states_and_collections)
+    logger.info(f"Aget_available_employer_states_and_collections_command: data for vacancy {target_vacancy_name} saved to file {available_employer_states_and_collections_file_path}")
+
+
+async def get_negotiations(bot_user_id: str, negotiation_state: str) -> None:
+    # TAGS: [resume_related]
+    """Sources negotiations collection."""
+    
+    try:
+        logger.info(f"source_negotiations_triggered_by_admin_command started. user_id: {bot_user_id}")
+
+        # ----- IDENTIFY USER and pull required data from records -----
+        
+        access_token = get_access_token_from_records(bot_user_id=bot_user_id)
+        target_vacancy_id = get_target_vacancy_id_from_records(record_id=bot_user_id)
+
+        # ----- IMPORTANT: do not check if NEGOTIATIONS COLLECTION file exists, we update it every time -----
+
+        # ----- PULL COLLECTIONS of negotiations and save it to file -----
+
+        #Define what employer_state to use for pulling the collection
+        target_employer_state = negotiation_state
+        #Build path to the file for the collection of negotiations data
+        vacancy_data_dir = get_vacancy_directory(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id)
+        negotiations_collection_file_path = vacancy_data_dir / f"negotiations_collections_{target_employer_state}.json"
+        
+        #Get collection of negotiations data for the target collection status "consider"
+        negotiations_collection_data = get_negotiations_by_collection(access_token=access_token, vacancy_id=target_vacancy_id, collection=target_employer_state)
+        # Write negotiations data JSON into negotiations_file_path
+        # If file already exists, it will be overwritten.
+        create_json_file_with_dictionary_content(file_path=str(negotiations_collection_file_path), content_to_write=negotiations_collection_data)
+        logger.info(f"source_negotiations_triggered_by_admin_command: successfully completed for user_id: {bot_user_id}")
+    except Exception as e:
+        logger.error(f"source_negotiations_triggered_by_admin_command: Failed to source negotiations for user_id {bot_user_id}: {e}", exc_info=True)
+        raise
+
+
+async def get_history(bot_user_id: str, resume_id: str) -> None:
+    #TAGS: [testing]
+
+    # ----- IDENTIFY USER and pull required data from records -----
+
+    access_token = get_access_token_from_records(bot_user_id=bot_user_id)
+    target_vacancy_id = get_target_vacancy_id_from_records(record_id=bot_user_id)
+    negotiation_id = get_negotiation_id_from_resume_record(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id)
+
+
+    # ----- PULL NEGOTIATIONS MESSAGES HISTORY (all sent messages by both sides) -----
+
+    #await update.message.reply_text(f"Получаю переписку с кандидатом...")
+    logger.debug(f"get_negotiations_history_command: Getting negotiations messages history for negotiation ID: {negotiation_id}")
+    vacancy_data_path = get_vacancy_directory(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id)
+    messages_by_negotiation_id_file_path = vacancy_data_path / f"messages_by_negotiation_id_{negotiation_id}.json"
+    messages_by_negotiation_id = {}
+    with open(messages_by_negotiation_id_file_path, "w", encoding="utf-8") as wf:
+        messages_by_negotiation_id = get_negotiations_messages(access_token=access_token, negotiation_id=negotiation_id)
+        json.dump(messages_by_negotiation_id, wf, ensure_ascii=False, indent=2)
+    logger.debug(f"get_negotiations_history_command: Negotiations messages history for negotiation ID: {negotiation_id} has been successfully saved to {messages_by_negotiation_id_file_path}")
+
+    # ----- PULL NEGOTIATIONS HISTORY (all actions by both sides) -----
+
+    #await update.message.reply_text(f"Получаю историю действий с кандидатом...")
+    logger.debug(f"get_negotiations_history_command: Getting negotiations history for resume ID: {resume_id}")
+    negotiations_history_file_path = vacancy_data_path / f"negotiations_history_{negotiation_id}.json"
+    negotiations_history = {}
+    with open(negotiations_history_file_path, "w", encoding="utf-8") as wf:
+        negotiations_history = get_negotiations_history(access_token=access_token, resume_id=resume_id)
+        json.dump(negotiations_history, wf, ensure_ascii=False, indent=2)
+    logger.debug(f"get_negotiations_history_command: Negotiations history for resume ID: {resume_id} has been successfully saved to {negotiations_history_file_path}")
+
+
+async def change_status(bot_user_id: str, resume_id: str) -> None:
+    #TAGS: [testing]
+    
+    # ----- IDENTIFY USER and pull required data from records -----
+
+    access_token = get_access_token_from_records(bot_user_id=bot_user_id)
+    target_vacancy_id = get_target_vacancy_id_from_records(record_id=bot_user_id)
+    negotiation_id = get_negotiation_id_from_resume_record(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id)
+
+
+    # ----- PULL NEGOTIATIONS MESSAGES HISTORY (all sent messages by both sides) -----
+
+    #await update.message.reply_text(f"Получаю переписку с кандидатом...")
+    logger.debug(f"get_negotiations_history_command: Getting negotiations messages history for negotiation ID: {negotiation_id}")
+    vacancy_data_path = get_vacancy_directory(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id)
+    messages_by_negotiation_id_file_path = vacancy_data_path / f"messages_by_negotiation_id_{negotiation_id}.json"
+    messages_by_negotiation_id = {}
+    with open(messages_by_negotiation_id_file_path, "w", encoding="utf-8") as wf:
+        messages_by_negotiation_id = get_negotiations_messages(access_token=access_token, negotiation_id=negotiation_id)
+        json.dump(messages_by_negotiation_id, wf, ensure_ascii=False, indent=2)
+    logger.debug(f"get_negotiations_history_command: Negotiations messages history for negotiation ID: {negotiation_id} has been successfully saved to {messages_by_negotiation_id_file_path}")
+
+    # ----- PULL NEGOTIATIONS HISTORY (all actions by both sides) -----
+
+    #await update.message.reply_text(f"Получаю историю действий с кандидатом...")
+    logger.debug(f"get_negotiations_history_command: Getting negotiations history for resume ID: {resume_id}")
+    negotiations_history_file_path = vacancy_data_path / f"negotiations_history_{negotiation_id}.json"
+    negotiations_history = {}
+    with open(negotiations_history_file_path, "w", encoding="utf-8") as wf:
+        negotiations_history = get_negotiations_history(access_token=access_token, resume_id=resume_id)
+        json.dump(negotiations_history, wf, ensure_ascii=False, indent=2)
+    logger.debug(f"get_negotiations_history_command: Negotiations history for resume ID: {resume_id} has been successfully saved to {negotiations_history_file_path}")
+
+
+
 
 
 ##########################################
