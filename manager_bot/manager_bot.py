@@ -433,8 +433,9 @@ async def admin_anazlyze_resumes_command(update: Update, context: ContextTypes.D
             if target_user_id:
                 if is_user_in_records(record_id=target_user_id):
                     if is_vacany_data_enough_for_resume_analysis(user_id=target_user_id):
+                        await send_message_to_user(update, context, text=f"Start creating tasks for analysis of the fresh resumes for user {target_user_id}.")
                         await analyze_resume_triggered_by_admin_command(bot_user_id=target_user_id)
-                        await send_message_to_user(update, context, text=f"Analysis of fresh resumes is in task_queue for user {target_user_id}.")
+                        await send_message_to_user(update, context, text=f"Analysis of fresh resumes is done for user {target_user_id}.")
                     else:
                         raise ValueError(f"User {target_user_id} does not have enough vacancy data for resume analysis.")
                 else:
