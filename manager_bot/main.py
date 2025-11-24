@@ -13,7 +13,7 @@ from manager_bot import (
     admin_anazlyze_resumes_command,
     admin_anazlyze_sourcing_criterais_command,
     admin_send_sourcing_criterais_to_user_command,
-    admin_update_resume_records_with_applicants_video_status_for_all_command,
+    admin_update_resume_records_with_applicants_video_status_command,
     admin_recommend_resumes_command,
     admin_send_message_command,
     admin_pull_file_command,
@@ -86,7 +86,7 @@ async def run_manager_bot() -> None:
     application.add_handler(CommandHandler("admin_update_neg_coll", admin_update_negotiations_command))
     application.add_handler(CommandHandler("admin_get_fresh_resumes", admin_get_fresh_resumes_command))
     application.add_handler(CommandHandler("admin_analyze_resumes", admin_anazlyze_resumes_command))
-    application.add_handler(CommandHandler("admin_update_video_for_all", admin_update_resume_records_with_applicants_video_status_for_all_command))
+    application.add_handler(CommandHandler("admin_update_video_for_all", admin_update_resume_records_with_applicants_video_status_command))
     application.add_handler(CommandHandler("admin_recommend", admin_recommend_resumes_command))
     application.add_handler(CommandHandler("admin_send_message", admin_send_message_command))
     application.add_handler(CommandHandler("admin_pull_file", admin_pull_file_command))
