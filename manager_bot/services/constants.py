@@ -82,7 +82,7 @@ PRIVACY_POLICY_CONFIRMATION_TEXT = (
     f"- подтвердите <a href=\"{PRIVACY_POLICY_PROCESSING_CONFIRMATION_LINK}\">согласие на обработку персональных данных и видео</a>\n"
 )
 
-APPLICANT_MESSAGE_TEXT_WITHOUT_LINK = "Здравствуйте. Мы очень заинтересовались вашим резюме. Чтобы ускорить процесс выхода на интервью, пройдите в телеграм бота и посмотрите приветственное видео менеджера:"
+APPLICANT_MESSAGE_TEXT_WITHOUT_LINK = "Здравствуйте. Мы очень заинтересовались вашим резюме. Чтобы ускорить процесс выхода на интервью, пройдите в телеграм бота и запишите приветственное видео менеджера:"
 
 
 # ----- USER MESSAGES CONSTANTS with SUCCESS status-----
@@ -125,4 +125,5 @@ FEEDBACK_ONLY_TEXT_ALLOWED_TEXT = "Пожалуйста, отправьте то
 
 BTN_INVITE_TO_INTERVIEW = "Пригласить на интервью"
 INVITE_TO_INTERVIEW_CALLBACK_PREFIX = "invite_to_interview"
-INVITE_TO_INTERVIEW_SENT_TEXT = "Пошел приглашать кандидата на интервью, с вами свяжутся в ближайшее время."
+INVITE_TO_INTERVIEW_SENT_TEXT_START = "Пошел приглашать кандидата "
+INVITE_TO_INTERVIEW_SENT_TEXT_END = " на интервью, с вами свяжутся в ближайшее время."

@@ -2124,49 +2124,53 @@ async def recommend_resumes_triggered_by_admin_command(bot_user_id: str, applica
         # build text based on data from resume records
         for resume_id in resume_ids_for_recommendation:
 
-            # ----- GET RECOMMENDATION TEXT and VIDEO PATH for each applicant -----
+            try:
+                # ----- GET RECOMMENDATION TEXT and VIDEO PATH for each applicant -----
 
-            recommendation_text = get_resume_recommendation_text_from_resume_records(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id)
-            # If nothing in resume records, ValueError is raised from method: get_resume_recommendation_text_from_resume_records()
-            """
-            applicant_video_file_path = get_path_to_video_from_applicant_from_resume_records(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id)
-            # If nothing in resume records, ValueError is raised from method: get_path_to_video_from_applicant_from_resume_records()
-            """
-            # ----- SEND RECOMMENDATION TEXT and VIDEO for each applicant -----
-            
-            if application and application.bot:
-                await application.bot.send_message(chat_id=int(bot_user_id), text=recommendation_text, parse_mode=ParseMode.HTML)
-                logger.info(f"recommend_resumes_triggered_by_admin_command: Recomendation text for resume {resume_id} has been successfully sent to user {bot_user_id}")
+                recommendation_text = get_resume_recommendation_text_from_resume_records(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id)
+                # If nothing in resume records, ValueError is raised from method: get_resume_recommendation_text_from_resume_records()
                 """
-                await application.bot.send_video(chat_id=int(bot_user_id), video=str(applicant_video_file_path))
-                logger.info(f"recommend_resumes_triggered_by_admin_command: Video for resume {resume_id} has been successfully sent to user {bot_user_id}")
+                applicant_video_file_path = get_path_to_video_from_applicant_from_resume_records(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id)
+                # If nothing in resume records, ValueError is raised from method: get_path_to_video_from_applicant_from_resume_records()
                 """
-                update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="resume_recommended", value="yes")
-                # If cannot update resume records, ValueError is raised from method: update_resume_record_with_top_level_key()
-                logger.info(f"recommend_resumes_triggered_by_admin_command: Resume records for resume {resume_id} has been successfully updated with recommended status 'yes'")
+                # ----- SEND RECOMMENDATION TEXT and VIDEO for each applicant -----
                 
-                # ----- SEND BUTTON TO INVITE APPLICANT TO INTERVIEW -----
-                # cannot use "questionnaire_service.py", because requires update and context objects
-                
-                # Create inline keyboard with invite button
-                if not resume_id:
-                    raise ValueError(f"Missing required resume_id for invite button callback_data")
-                
-                callback_data = f"{INVITE_TO_INTERVIEW_CALLBACK_PREFIX}:{resume_id}"
-                
-                invite_button = InlineKeyboardButton(
-                    text=BTN_INVITE_TO_INTERVIEW,
-                    callback_data=callback_data
-                )
-                keyboard = InlineKeyboardMarkup([[invite_button]])
-                await application.bot.send_message(
-                    chat_id=int(bot_user_id),
-                    text=f"Хотите пригласить кандидата на интервью?", 
-                    parse_mode=ParseMode.HTML,
-                    reply_markup=keyboard
-                )
-            else:
-                raise ValueError(f"Missing required application or bot instance for sending message to user {bot_user_id}")    
+                if application and application.bot:
+                    await application.bot.send_message(chat_id=int(bot_user_id), text=recommendation_text, parse_mode=ParseMode.HTML)
+                    logger.info(f"recommend_resumes_triggered_by_admin_command: Recomendation text for resume {resume_id} has been successfully sent to user {bot_user_id}")
+                    """
+                    await application.bot.send_video(chat_id=int(bot_user_id), video=str(applicant_video_file_path))
+                    logger.info(f"recommend_resumes_triggered_by_admin_command: Video for resume {resume_id} has been successfully sent to user {bot_user_id}")
+                    """
+                    update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="resume_recommended", value="yes")
+                    # If cannot update resume records, ValueError is raised from method: update_resume_record_with_top_level_key()
+                    logger.info(f"recommend_resumes_triggered_by_admin_command: Resume records for resume {resume_id} has been successfully updated with recommended status 'yes'")
+                    
+                    # ----- SEND BUTTON TO INVITE APPLICANT TO INTERVIEW -----
+                    # cannot use "questionnaire_service.py", because requires update and context objects
+                    
+                    # Create inline keyboard with invite button
+                    if not resume_id:
+                        raise ValueError(f"Missing required resume_id for invite button callback_data")
+                    
+                    callback_data = f"{INVITE_TO_INTERVIEW_CALLBACK_PREFIX}:{resume_id}"
+                    
+                    invite_button = InlineKeyboardButton(
+                        text=BTN_INVITE_TO_INTERVIEW,
+                        callback_data=callback_data
+                    )
+                    keyboard = InlineKeyboardMarkup([[invite_button]])
+                    await application.bot.send_message(
+                        chat_id=int(bot_user_id),
+                        text=f"Хотите пригласить кандидата на интервью?", 
+                        parse_mode=ParseMode.HTML,
+                        reply_markup=keyboard
+                    )
+                else:
+                    raise ValueError(f"Missing required application or bot instance for sending message to user {bot_user_id}")
+            except Exception as e:
+                logger.error(f"recommend_resumes_triggered_by_admin_command: Failed to process resume {resume_id}: {e}. Skipping this resume and continuing with others.", exc_info=True)
+                continue
     except Exception as e:
         logger.error(f"recommend_resumes_triggered_by_admin_command: Failed: {e}", exc_info=True)
         raise
@@ -2221,8 +2225,21 @@ async def handle_invite_to_interview_button(update: Update, context: ContextType
                 text=admin_message
             )
             
+
+            resume_records_file_path = get_resume_records_file_path(bot_user_id=bot_user_id, vacancy_id=vacancy_id)
+            # Read existing data
+            with open(resume_records_file_path, "r", encoding="utf-8") as f:
+                resume_records = json.load(f)
+            resume_record_id_data = resume_records[resume_id]
+
+            # ----- GET VALUES for TEXT -----
+
+            first_name = resume_record_id_data["first_name"]
+            last_name = resume_record_id_data["last_name"]
+            
+            msg_text = INVITE_TO_INTERVIEW_SENT_TEXT_START + f"'{first_name} {last_name}'" + INVITE_TO_INTERVIEW_SENT_TEXT_END
             # Confirm to user (keyboard already removed by handle_answer())
-            await send_message_to_user(update, context, text=INVITE_TO_INTERVIEW_SENT_TEXT)
+            await send_message_to_user(update, context, text=msg_text)
         else:
             raise ValueError(f"Invalid callback_data format for invite to interview: {callback_data}")
     except Exception as e:
