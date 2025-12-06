@@ -537,7 +537,7 @@ async def admin_recommend_resumes_command(update: Update, context: ContextTypes.
                 if is_user_in_records(record_id=target_user_id):
                     if is_vacany_data_enough_for_resume_analysis(user_id=target_user_id):
                         await recommend_resumes_triggered_by_admin_command(bot_user_id=target_user_id, application=context.application)
-                        await send_message_to_user(update, context, text="Recommending resumes is triggered for user {target_user_id}.")
+                        await send_message_to_user(update, context, text=f"Recommending resumes is triggered for user {target_user_id}.")
                     else:
                         raise ValueError(f"User {target_user_id} does not have enough vacancy data for resume analysis.")
                 else:
@@ -2114,7 +2114,7 @@ async def recommend_resumes_triggered_by_admin_command(bot_user_id: str, applica
         if num_resume_ids_for_recommendation == 0:
             if application and application.bot:
                 logger.info(f"recommend_resumes_triggered_by_admin_command: No suitable resumes found for recommendation. Sending message to user {bot_user_id}.")
-                await application.bot.send_message(chat_id=int(bot_user_id), text=f"Вакансия: '{target_vacancy_name}'.\nПока нет подходящих кандидатов, записавших видео визитку.")
+                await application.bot.send_message(chat_id=int(bot_user_id), text=f"Вакансия: '{target_vacancy_name}'.\nПока нет подходящих кандидатов.")
             else:
                 logger.warning(f"recommend_resumes_triggered_by_admin_command: Cannot send message to user {bot_user_id}: application or bot instance not provided")
             return

@@ -192,11 +192,11 @@ def create_record_for_new_resume_id_in_resume_records(bot_user_id: str, vacancy_
             "email": "",
             "ai_analysis": {},
             "resume_sorting_status": "new",
-            "request_to_shoot_resume_video_sent": "no",
-            "resume_video_received": "no",
+            "request_to_shoot_resume_video_sent": "",
+            "resume_video_received": "",
             "resume_video_path": "",
-            "resume_recommended": "no",
-            "resume_accepted": "no"
+            "resume_recommended": "",
+            "resume_accepted": ""
         }
         resume_records_file_path.write_text(json.dumps(resume_records, ensure_ascii=False, indent=2), encoding="utf-8")
         logger.info(f"{resume_records_file_path} has been successfully created with new resume_record: {resume_record_id_str}")
@@ -448,15 +448,24 @@ def get_list_of_resume_ids_for_recommendation(bot_user_id: str, vacancy_id: str)
     resume_records_file_path = get_resume_records_file_path(bot_user_id=bot_user_id, vacancy_id=vacancy_id)
     with open(resume_records_file_path, "r", encoding="utf-8") as f:
         resume_records = json.load(f)
+    logger.debug(f"get_list_of_resume_ids_for_recommendation: Resume records path: {resume_records}")
 
     recommendation_list = []
     for resume_id, resume_record_data in resume_records.items():
         # Check if resume is passed and not recommended yet without video
         if resume_record_data["resume_sorting_status"] == "passed":
+            logger.debug(f"get_list_of_resume_ids_for_recommendation: Resume {resume_id} is passed")
+            if resume_record_data["resume_recommended"] == "no":
+                logger.debug(f"get_list_of_resume_ids_for_recommendation: Resume {resume_id} is not recommended yet")
+                recommendation_list.append(resume_id)
+            """
             # Collect resume id for passed resumes WITH video
             if resume_record_data["resume_video_received"] == "yes":
                 if resume_record_data["resume_recommended"] == "no":
                     recommendation_list.append(resume_id)
+            """
+        else:
+            logger.debug(f"get_list_of_resume_ids_for_recommendation: Resume {resume_id} is not passed")
     logger.debug(f"get_list_of_resume_ids_for_recommendation: List of resume IDs for recommendation: {recommendation_list}")
     return recommendation_list
 
