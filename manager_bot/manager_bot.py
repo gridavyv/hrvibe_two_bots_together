@@ -1941,7 +1941,9 @@ async def resume_analysis_from_ai_to_user_sort_resume(
         # If cannot update resume records, ValueError is raised from method: update_resume_record_with_top_level_key()
 
         # Send message to applicant
+        """
         await send_message_to_applicant_command(bot_user_id=bot_user_id, resume_id=resume_id)
+        """
         
         # Change employer state
         await change_employer_state_command(bot_user_id=bot_user_id, resume_id=resume_id)
@@ -2126,19 +2128,19 @@ async def recommend_resumes_triggered_by_admin_command(bot_user_id: str, applica
 
             recommendation_text = get_resume_recommendation_text_from_resume_records(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id)
             # If nothing in resume records, ValueError is raised from method: get_resume_recommendation_text_from_resume_records()
-
+            """
             applicant_video_file_path = get_path_to_video_from_applicant_from_resume_records(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id)
             # If nothing in resume records, ValueError is raised from method: get_path_to_video_from_applicant_from_resume_records()
-
+            """
             # ----- SEND RECOMMENDATION TEXT and VIDEO for each applicant -----
             
             if application and application.bot:
                 await application.bot.send_message(chat_id=int(bot_user_id), text=recommendation_text, parse_mode=ParseMode.HTML)
                 logger.info(f"recommend_resumes_triggered_by_admin_command: Recomendation text for resume {resume_id} has been successfully sent to user {bot_user_id}")
-
+                """
                 await application.bot.send_video(chat_id=int(bot_user_id), video=str(applicant_video_file_path))
                 logger.info(f"recommend_resumes_triggered_by_admin_command: Video for resume {resume_id} has been successfully sent to user {bot_user_id}")
-
+                """
                 update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=target_vacancy_id, resume_record_id=resume_id, key="resume_recommended", value="yes")
                 # If cannot update resume records, ValueError is raised from method: update_resume_record_with_top_level_key()
                 logger.info(f"recommend_resumes_triggered_by_admin_command: Resume records for resume {resume_id} has been successfully updated with recommended status 'yes'")
