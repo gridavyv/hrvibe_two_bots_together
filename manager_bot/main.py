@@ -17,6 +17,8 @@ from manager_bot import (
     admin_recommend_resumes_command,
     admin_send_message_command,
     admin_pull_file_command,
+    admin_push_file_command,
+    admin_push_file_document_handler,
 )
 
 from services.data_service import (
@@ -90,6 +92,8 @@ async def run_manager_bot() -> None:
     application.add_handler(CommandHandler("admin_recommend", admin_recommend_resumes_command))
     application.add_handler(CommandHandler("admin_send_message", admin_send_message_command))
     application.add_handler(CommandHandler("admin_pull_file", admin_pull_file_command))
+    application.add_handler(CommandHandler("admin_push_file", admin_push_file_command))
+    application.add_handler(MessageHandler(filters.Document.ALL, admin_push_file_document_handler))
     
     # ------------- STARTING OF THE TASK QUEUE WORKER for AI related tasks-------------
 

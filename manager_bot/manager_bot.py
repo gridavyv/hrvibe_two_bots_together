@@ -706,6 +706,175 @@ async def admin_pull_file_command(update: Update, context: ContextTypes.DEFAULT_
             )
 
 
+async def admin_push_file_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    #TAGS: [admin]
+    """
+    Admin command to upload a file to a specified location.
+    Usage: /admin_push_file <file_relative_path>
+    Usage example: /admin_push_file logs/manager_bot_logs/1234432.log
+    After calling the command, send the file (json, txt, or mp4) as a document.
+    The file will be saved to the specified location.
+    """
+    
+    try:
+        # ----- IDENTIFY USER and pull required data from records -----
+
+        bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        logger.info(f"admin_push_file_command: started. User_id: {bot_user_id}")
+        
+        #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
+
+        admin_id = os.getenv("ADMIN_ID", "")
+        if not admin_id or bot_user_id != admin_id:
+            await send_message_to_user(update, context, text=FAIL_TO_IDENTIFY_USER_AS_ADMIN_TEXT)
+            logger.error(f"Unauthorized for {bot_user_id}")
+            return
+
+        # ----- PARSE COMMAND ARGUMENTS -----
+
+        if not context.args or len(context.args) != 1:
+            invalid_args_text = "Invalid arguments.\nValid: /admin_push_file <file_path>"
+            raise ValueError(invalid_args_text)
+        
+        file_path_str = context.args[0]
+        file_path = Path(file_path_str)
+        file_name = file_path.name
+
+        # ----- VALIDATE FILE EXTENSION -----
+
+        valid_extensions = [".json", ".txt", ".mp4", ".log"]
+        file_extension = file_path.suffix
+        if file_extension not in valid_extensions:
+            invalid_extension_text = f"Invalid file extension.\nValid: {', '.join(valid_extensions)}"
+            raise ValueError(invalid_extension_text)
+
+        # ----- STORE FILE PATH IN CONTEXT FOR DOCUMENT HANDLER -----
+
+        context.user_data["admin_push_file_path"] = str(file_path)
+        context.user_data["admin_push_file_waiting"] = True
+
+        # ----- NOTIFY ADMIN TO SEND FILE -----
+
+        if context.application and context.application.bot:
+            chat_id = update.effective_chat.id
+            await context.application.bot.send_message(
+                chat_id=chat_id,
+                text=f"📤 Ready to receive file.\nTarget path: `{file_path_str}`\n\nPlease send the file as a document (json, txt, or mp4).",
+                parse_mode=ParseMode.MARKDOWN
+            )
+            logger.info(f"admin_push_file_command: Waiting for file to upload to '{file_path}' for user {bot_user_id}")
+        else:
+            raise RuntimeError("Application or bot instance not available")
+    except Exception as e:
+        logger.error(f"admin_push_file_command: Failed to execute: {e}", exc_info=True)
+        # Send notification to admin about the error
+        if context.application:
+            await send_message_to_admin(
+                application=context.application,
+                text=f"⚠️ Error admin_push_file_command: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+            )
+
+
+async def admin_push_file_document_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    #TAGS: [admin]
+    """
+    Handler for document uploads when admin_push_file_command is waiting for a file.
+    Saves the received document to the path specified in admin_push_file_command.
+    """
+    
+    try:
+        # ----- CHECK IF WE ARE WAITING FOR FILE UPLOAD -----
+
+        if not context.user_data.get("admin_push_file_waiting", False):
+            return  # Not waiting for file upload, ignore this document
+        
+        # ----- IDENTIFY USER -----
+
+        bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        
+        #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
+
+        admin_id = os.getenv("ADMIN_ID", "")
+        if not admin_id or bot_user_id != admin_id:
+            return  # Not admin, ignore
+
+        # ----- GET FILE PATH FROM CONTEXT -----
+
+        file_path_str = context.user_data.get("admin_push_file_path")
+        if not file_path_str:
+            await update.message.reply_text("❌ Error: File path not found. Please run /admin_push_file command again.")
+            context.user_data.pop("admin_push_file_waiting", None)
+            context.user_data.pop("admin_push_file_path", None)
+            return
+
+        file_path = Path(file_path_str)
+
+        # ----- GET DOCUMENT FROM MESSAGE -----
+
+        if not update.message or not update.message.document:
+            await update.message.reply_text("❌ Error: No document found in the message. Please send a file as a document.")
+            return
+
+        document = update.message.document
+        file_name = document.file_name or file_path.name
+
+        # ----- VALIDATE FILE EXTENSION -----
+
+        valid_extensions = [".json", ".txt", ".mp4", ".log"]
+        file_extension = Path(file_name).suffix.lower()
+        if file_extension not in valid_extensions:
+            await update.message.reply_text(
+                f"❌ Invalid file extension: {file_extension}\nValid extensions: {', '.join(valid_extensions)}"
+            )
+            return
+
+        # ----- DOWNLOAD FILE FROM TELEGRAM -----
+
+        if not context.application or not context.application.bot:
+            raise RuntimeError("Application or bot instance not available")
+
+        file = await context.application.bot.get_file(document.file_id)
+        
+        # ----- SAVE FILE TO SPECIFIED LOCATION -----
+
+        # Create directory if it doesn't exist
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Download and save file
+        await file.download_to_drive(custom_path=str(file_path))
+        
+        logger.info(f"admin_push_file_document_handler: File '{file_name}' saved to '{file_path}' for user {bot_user_id}")
+
+        # ----- CLEAN UP CONTEXT -----
+
+        context.user_data.pop("admin_push_file_waiting", None)
+        context.user_data.pop("admin_push_file_path", None)
+
+        # ----- CONFIRM SUCCESS TO ADMIN -----
+
+        await update.message.reply_text(
+            f"✅ File successfully uploaded!\nPath: `{file_path.relative_to(Path(os.getenv('USERS_DATA_DIR', '/users_data')))}`",
+            parse_mode=ParseMode.MARKDOWN
+        )
+
+    except Exception as e:
+        logger.error(f"admin_push_file_document_handler: Failed to execute: {e}", exc_info=True)
+        # Clean up context on error
+        context.user_data.pop("admin_push_file_waiting", None)
+        context.user_data.pop("admin_push_file_path", None)
+        
+        # Send error message to admin
+        if update.message:
+            await update.message.reply_text(f"❌ Error uploading file: {e}")
+        
+        # Send notification to admin about the error
+        if context.application:
+            await send_message_to_admin(
+                application=context.application,
+                text=f"⚠️ Error admin_push_file_document_handler: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+            )
+
+
 ########################################################################################
 # ------------ AUTOMATIC FLOW ON START - can be triggered by from MAIN MENU ------------
 ########################################################################################
