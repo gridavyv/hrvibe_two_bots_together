@@ -2445,6 +2445,11 @@ async def handle_invite_to_interview_button(update: Update, context: ContextType
             msg_text = INVITE_TO_INTERVIEW_SENT_TEXT_START + f"'{first_name} {last_name}'" + INVITE_TO_INTERVIEW_SENT_TEXT_END
             # Confirm to user (keyboard already removed by handle_answer())
             await send_message_to_user(update, context, text=msg_text)
+
+            update_resume_record_with_top_level_key(bot_user_id=bot_user_id, vacancy_id=vacancy_id, resume_record_id=resume_id, key="resume_accepted", value="yes")
+            # If cannot update resume records, ValueError is raised from method: update_resume_record_with_top_level_key()
+            logger.info(f"handle_invite_to_interview_button: Resume records for resume {resume_id} has been successfully updated with accepted status 'yes'")
+            
         else:
             raise ValueError(f"Invalid callback_data format for invite to interview: {callback_data}")
     except Exception as e:
