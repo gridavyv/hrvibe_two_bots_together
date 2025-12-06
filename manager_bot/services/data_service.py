@@ -455,13 +455,13 @@ def get_list_of_resume_ids_for_recommendation(bot_user_id: str, vacancy_id: str)
         # Check if resume is passed and not recommended yet without video
         if resume_record_data["resume_sorting_status"] == "passed":
             logger.debug(f"get_list_of_resume_ids_for_recommendation: Resume {resume_id} is passed")
-            if resume_record_data["resume_recommended"] == "no":
+            if resume_record_data.get("resume_recommended", "no") == "no":
                 logger.debug(f"get_list_of_resume_ids_for_recommendation: Resume {resume_id} is not recommended yet")
                 recommendation_list.append(resume_id)
             """
             # Collect resume id for passed resumes WITH video
             if resume_record_data["resume_video_received"] == "yes":
-                if resume_record_data["resume_recommended"] == "no":
+                if resume_record_data.get("resume_recommended", "no") == "no":
                     recommendation_list.append(resume_id)
             """
         else:
