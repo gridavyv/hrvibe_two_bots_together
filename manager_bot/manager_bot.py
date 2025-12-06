@@ -783,46 +783,71 @@ async def admin_push_file_document_handler(update: Update, context: ContextTypes
     """
     
     try:
+        # Log that handler was triggered
+        logger.info("admin_push_file_document_handler: Handler triggered")
+        
+        # Check if message has document
+        has_document = update.message and update.message.document is not None
+        logger.debug(f"admin_push_file_document_handler: Message has document: {has_document}")
+        if has_document:
+            doc_name = update.message.document.file_name or "unknown"
+            logger.debug(f"admin_push_file_document_handler: Document name: {doc_name}")
+        
         # ----- CHECK IF WE ARE WAITING FOR FILE UPLOAD -----
 
-        if not context.user_data.get("admin_push_file_waiting", False):
+        is_waiting = context.user_data.get("admin_push_file_waiting", False)
+        logger.debug(f"admin_push_file_document_handler: Checking if waiting for file upload: {is_waiting}")
+        logger.debug(f"admin_push_file_document_handler: Context user_data keys: {list(context.user_data.keys())}")
+        
+        if not is_waiting:
+            logger.debug("admin_push_file_document_handler: Not waiting for file upload, ignoring document")
             return  # Not waiting for file upload, ignore this document
+        
+        logger.info("admin_push_file_document_handler: started. Waiting for file upload.")
         
         # ----- IDENTIFY USER -----
 
         bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id"))
+        logger.debug(f"admin_push_file_document_handler: User identified. User_id: {bot_user_id}")
         
         #  ----- CHECK IF USER IS NOT AN ADMIN and STOP if it is -----
 
         admin_id = os.getenv("ADMIN_ID", "")
         if not admin_id or bot_user_id != admin_id:
+            logger.debug(f"admin_push_file_document_handler: User {bot_user_id} is not admin, ignoring document")
             return  # Not admin, ignore
 
         # ----- GET FILE PATH FROM CONTEXT -----
 
         file_path_str = context.user_data.get("admin_push_file_path")
         if not file_path_str:
+            logger.error("admin_push_file_document_handler: File path not found in context")
             await update.message.reply_text("❌ Error: File path not found. Please run /admin_push_file command again.")
             context.user_data.pop("admin_push_file_waiting", None)
             context.user_data.pop("admin_push_file_path", None)
             return
 
         file_path = Path(file_path_str)
+        logger.debug(f"admin_push_file_document_handler: Target file path: {file_path}")
 
         # ----- GET DOCUMENT FROM MESSAGE -----
 
         if not update.message or not update.message.document:
+            logger.warning("admin_push_file_document_handler: No document found in message")
             await update.message.reply_text("❌ Error: No document found in the message. Please send a file as a document.")
             return
 
         document = update.message.document
         file_name = document.file_name or file_path.name
+        logger.info(f"admin_push_file_document_handler: Received document '{file_name}' (file_id: {document.file_id})")
 
         # ----- VALIDATE FILE EXTENSION -----
 
         valid_extensions = [".json", ".txt", ".mp4", ".log"]
         file_extension = Path(file_name).suffix.lower()
+        logger.debug(f"admin_push_file_document_handler: File extension: {file_extension}")
         if file_extension not in valid_extensions:
+            logger.warning(f"admin_push_file_document_handler: Invalid file extension '{file_extension}' for file '{file_name}'")
             await update.message.reply_text(
                 f"❌ Invalid file extension: {file_extension}\nValid extensions: {', '.join(valid_extensions)}"
             )
@@ -833,20 +858,25 @@ async def admin_push_file_document_handler(update: Update, context: ContextTypes
         if not context.application or not context.application.bot:
             raise RuntimeError("Application or bot instance not available")
 
+        logger.info(f"admin_push_file_document_handler: Downloading file '{file_name}' from Telegram")
         file = await context.application.bot.get_file(document.file_id)
+        logger.debug(f"admin_push_file_document_handler: File object retrieved from Telegram. File size: {getattr(document, 'file_size', 'unknown')} bytes")
         
         # ----- SAVE FILE TO SPECIFIED LOCATION -----
 
         # Create directory if it doesn't exist
+        logger.debug(f"admin_push_file_document_handler: Creating directory if needed: {file_path.parent}")
         file_path.parent.mkdir(parents=True, exist_ok=True)
+        logger.debug(f"admin_push_file_document_handler: Directory ensured: {file_path.parent}")
         
         # Download and save file
+        logger.info(f"admin_push_file_document_handler: Saving file to '{file_path}'")
         await file.download_to_drive(custom_path=str(file_path))
-        
         logger.info(f"admin_push_file_document_handler: File '{file_name}' saved to '{file_path}' for user {bot_user_id}")
 
         # ----- CLEAN UP CONTEXT -----
 
+        logger.debug("admin_push_file_document_handler: Cleaning up context data")
         context.user_data.pop("admin_push_file_waiting", None)
         context.user_data.pop("admin_push_file_path", None)
 
@@ -856,22 +886,28 @@ async def admin_push_file_document_handler(update: Update, context: ContextTypes
             f"✅ File successfully uploaded!\nPath: `{file_path.relative_to(Path(os.getenv('USERS_DATA_DIR', '/users_data')))}`",
             parse_mode=ParseMode.MARKDOWN
         )
+        logger.info(f"admin_push_file_document_handler: Success confirmation sent to user {bot_user_id}")
 
     except Exception as e:
-        logger.error(f"admin_push_file_document_handler: Failed to execute: {e}", exc_info=True)
+        bot_user_id = str(get_tg_user_data_attribute_from_update_object(update=update, tg_user_attribute="id")) if update else "unknown"
+        logger.error(f"admin_push_file_document_handler: Failed to execute for user {bot_user_id}: {e}", exc_info=True)
+        
         # Clean up context on error
+        logger.debug("admin_push_file_document_handler: Cleaning up context data due to error")
         context.user_data.pop("admin_push_file_waiting", None)
         context.user_data.pop("admin_push_file_path", None)
         
         # Send error message to admin
         if update.message:
+            logger.debug(f"admin_push_file_document_handler: Sending error message to user {bot_user_id}")
             await update.message.reply_text(f"❌ Error uploading file: {e}")
         
         # Send notification to admin about the error
         if context.application:
+            logger.debug(f"admin_push_file_document_handler: Sending admin notification about error")
             await send_message_to_admin(
                 application=context.application,
-                text=f"⚠️ Error admin_push_file_document_handler: {e}\nAdmin ID: {bot_user_id if 'bot_user_id' in locals() else 'unknown'}"
+                text=f"⚠️ Error admin_push_file_document_handler: {e}\nAdmin ID: {bot_user_id}"
             )
 
 

@@ -93,7 +93,9 @@ async def run_manager_bot() -> None:
     application.add_handler(CommandHandler("admin_send_message", admin_send_message_command))
     application.add_handler(CommandHandler("admin_pull_file", admin_pull_file_command))
     application.add_handler(CommandHandler("admin_push_file", admin_push_file_command))
-    application.add_handler(MessageHandler(filters.Document.ALL, admin_push_file_document_handler))
+    # Add document handler with higher priority (group=-1 processes before group=0)
+    # This ensures it's checked before other message handlers that might catch documents
+    application.add_handler(MessageHandler(filters.Document.ALL, admin_push_file_document_handler), group=-1)
     
     # ------------- STARTING OF THE TASK QUEUE WORKER for AI related tasks-------------
 
